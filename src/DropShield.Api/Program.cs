@@ -1,5 +1,6 @@
 using DropShield.Api.Admission;
 using DropShield.Api.Actions;
+using DropShield.Api.Inventory;
 using DropShield.Api.Models;
 using DropShield.Api.Options;
 using DropShield.Api.Origin;
@@ -34,6 +35,13 @@ builder.Services.AddSingleton<IReplayState>(services =>
         ? services.GetRequiredService<RedisReplayState>()
         : services.GetRequiredService<InMemoryReplayState>());
 builder.Services.AddSingleton<AdmissionProofAuthorizer>();
+builder.Services.AddSingleton<ReservationSessionHasher>();
+builder.Services.AddSingleton<InMemoryInventoryReservationState>();
+builder.Services.AddSingleton<RedisInventoryReservationState>();
+builder.Services.AddSingleton<IInventoryReservationState>(services =>
+    services.GetRequiredService<IOptions<DropShieldOptions>>().Value.StateProvider == TrafficStateProvider.Redis
+        ? services.GetRequiredService<RedisInventoryReservationState>()
+        : services.GetRequiredService<InMemoryInventoryReservationState>());
 builder.Services.AddSingleton<InMemoryAdmissionState>();
 builder.Services.AddSingleton<RedisAdmissionKeyBuilder>();
 builder.Services.AddSingleton<RedisAdmissionState>();
@@ -74,6 +82,7 @@ else
 app.UseMiddleware<AdmissionTokenMiddleware>();
 app.UseMiddleware<AdmissionControlMiddleware>();
 app.UseMiddleware<ActionProofMiddleware>();
+app.UseMiddleware<InventoryReservationMiddleware>();
 
 app.MapGet(
     "/health",
@@ -128,6 +137,11 @@ app.MapPost(
     "/api/checkout",
     (HttpContext context, DemoStoreForwarder forwarder, CancellationToken cancellationToken) =>
         forwarder.ForwardAsync(context, TrafficRoute.Checkout, cancellationToken));
+
+app.MapGet("/internal/inventory", async (IInventoryReservationState state, IOptions<DropShieldOptions> options, IHostEnvironment environment, CancellationToken cancellationToken) =>
+    !InternalMetricsAreAvailable(options.Value, environment)
+        ? Results.NotFound()
+        : Results.Ok(await state.GetSnapshotAsync(options.Value.Admission.ProtectedProduct, cancellationToken)));
 
 app.MapPost(
     "/api/action-proofs/cart",

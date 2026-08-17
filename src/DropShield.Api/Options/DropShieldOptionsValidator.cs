@@ -83,6 +83,7 @@ public sealed partial class DropShieldOptionsValidator(IHostEnvironment environm
         ValidateAdmission(options, failures);
         ValidateAdmissionTokens(options, isControlledEnvironment, failures);
         ValidateActionProofs(options, failures);
+        ValidateInventoryReservation(options, failures);
 
         return failures.Count == 0
             ? ValidateOptionsResult.Success
@@ -245,6 +246,35 @@ public sealed partial class DropShieldOptionsValidator(IHostEnvironment environm
         {
             failures.Add(
                 "DropShield:ActionProofs:MaximumInMemoryMarkers must be between 1 and 1000000.");
+        }
+    }
+
+    private static void ValidateInventoryReservation(
+        DropShieldOptions options,
+        ICollection<string> failures)
+    {
+        var inventory = options.InventoryReservation;
+        if (!inventory.Enabled)
+        {
+            return;
+        }
+
+        if (!options.Admission.Enabled || !options.ActionProofs.Enabled)
+        {
+            failures.Add("DropShield:InventoryReservation requires enabled admission and action proofs.");
+        }
+
+        if (inventory.InitialStock is < 1 or > 1_000_000 ||
+            inventory.ReservationTtlSeconds is < 1 or > 86_400 ||
+            inventory.MaximumInMemoryReservations is < 1 or > 1_000_000)
+        {
+            failures.Add("DropShield inventory reservation settings are outside supported bounds.");
+        }
+
+        if (options.Admission.Enabled &&
+            inventory.ReservationTtlSeconds > options.Admission.SessionTtlSeconds)
+        {
+            failures.Add("DropShield reservation TTL must not exceed the admission session TTL.");
         }
     }
 

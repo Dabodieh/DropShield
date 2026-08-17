@@ -15,11 +15,11 @@ This project must not be used to send abusive traffic to third-party websites. P
 
 ## Current phase
 
-**Phase 8 — Cart and Checkout Replay Protection**
+**Phase 9 — Synthetic Inventory Reservation**
 
-The completed Phase 1–7 paths remain reproducible. Phase 8 adds one-time action proof for protected cart and checkout mutations. Action proof is separately scoped to the admitted session, configured drop, and server-selected action; it is atomically consumed before forwarding. InMemory remains available for one-process local development; Redis mode coordinates replay consumption across instances.
+The completed Phase 1–8 paths remain reproducible. Phase 9 adds a configurable synthetic reservation pool for the protected drop. A valid cart action reserves one unit for its admitted session, a successful checkout commits it, and abandoned reservations return to the available pool after the configured TTL. InMemory remains available for one-process local development; Redis mode coordinates reservation transitions across instances.
 
-Per-client rate limits remain the abuse boundary. Waiting clients receive JSON HTTP 202 rather than an exact queue position, while admitted clients receive an HttpOnly admission-proof cookie. Protected cart and checkout requests additionally require a short-lived `X-DropShield-Action` proof; replay, inventory reservation, bot classification, adaptive admission, Adobe Commerce integration, and edge-provider integration remain future work.
+Per-client rate limits remain the abuse boundary. Waiting clients receive JSON HTTP 202 rather than an exact queue position, while admitted clients receive an HttpOnly admission-proof cookie. Protected cart and checkout requests additionally require a short-lived `X-DropShield-Action` proof. The reservation ledger is synthetic only: real inventory allocation must remain coordinated with Adobe Commerce and retailer inventory/ERP systems. Bot classification, adaptive admission, Adobe Commerce integration, and edge-provider integration remain future work.
 
 ## Architecture direction
 
@@ -175,7 +175,7 @@ dotnet run --project src/DropShield.Api
 
 Redis unavailability is fail-closed: protected traffic receives HTTP 503 and is not forwarded or silently placed on a weaker local limiter. See [`docs/PHASE5_DISTRIBUTED_STATE.md`](docs/PHASE5_DISTRIBUTED_STATE.md) and [ADR-003](docs/adr/ADR-003-distributed-state-provider.md).
 
-## Phase 6–8 — Waiting room, admission, and action proof
+## Phase 6–9 — Waiting room, admission, action proof, and reservation
 
 Admission is enabled for `pokemon-etb` in the committed PoC configuration. A protected-stock request first passes the per-client abuse limit. The first configured batch of sessions is admitted; eligible excess sessions receive:
 
@@ -187,7 +187,7 @@ Admission is enabled for `pokemon-etb` in the committed PoC configuration. A pro
 }
 ```
 
-The response is HTTP 202 with `Retry-After`. Poll the same protected-stock URL using the returned `DropShield.Session` cookie. No exact queue position is promised. An admitted response also sets a separate short-lived HttpOnly `DropShield.Admission` cookie carrying HMAC-SHA256 proof bound to that session and drop. A client with valid admission proof can obtain a cart or checkout action proof from `POST /api/action-proofs/cart` or `POST /api/action-proofs/checkout`, then attach it as `X-DropShield-Action` to the corresponding mutation. Each action proof is consumed exactly once before DemoStore forwarding. See [`docs/PHASE6_ADMISSION_CONTROL.md`](docs/PHASE6_ADMISSION_CONTROL.md), [`docs/PHASE7_SIGNED_ADMISSION.md`](docs/PHASE7_SIGNED_ADMISSION.md), and [`docs/PHASE8_REPLAY_PROTECTION.md`](docs/PHASE8_REPLAY_PROTECTION.md).
+The response is HTTP 202 with `Retry-After`. Poll the same protected-stock URL using the returned `DropShield.Session` cookie. No exact queue position is promised. An admitted response also sets a separate short-lived HttpOnly `DropShield.Admission` cookie carrying HMAC-SHA256 proof bound to that session and drop. A client with valid admission proof can obtain a cart or checkout action proof from `POST /api/action-proofs/cart` or `POST /api/action-proofs/checkout`, then attach it as `X-DropShield-Action` to the corresponding mutation. Each action proof is consumed exactly once before DemoStore forwarding. A valid cart action then reserves one synthetic unit; checkout commits that reservation only after DemoStore succeeds. See [`docs/PHASE6_ADMISSION_CONTROL.md`](docs/PHASE6_ADMISSION_CONTROL.md), [`docs/PHASE7_SIGNED_ADMISSION.md`](docs/PHASE7_SIGNED_ADMISSION.md), [`docs/PHASE8_REPLAY_PROTECTION.md`](docs/PHASE8_REPLAY_PROTECTION.md), and [`docs/PHASE9_INVENTORY_RESERVATION.md`](docs/PHASE9_INVENTORY_RESERVATION.md).
 
 ## Docker
 

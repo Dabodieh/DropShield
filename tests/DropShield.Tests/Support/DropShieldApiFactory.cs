@@ -1,6 +1,7 @@
 using DropShield.Api;
 using DropShield.Api.Admission;
 using DropShield.Api.Actions;
+using DropShield.Api.Inventory;
 using DropShield.Api.Origin;
 using DropShield.Api.State;
 using Microsoft.AspNetCore.Hosting;
@@ -17,7 +18,8 @@ internal sealed class DropShieldApiFactory(
     IDistributedTrafficState? distributedState = null,
     IAdmissionState? admissionState = null,
     TimeProvider? timeProvider = null,
-    IReplayState? replayState = null)
+    IReplayState? replayState = null,
+    IInventoryReservationState? inventoryState = null)
     : WebApplicationFactory<ApiAssemblyMarker>
 {
     private readonly IReadOnlyDictionary<string, string?> _overrides = overrides ??
@@ -60,6 +62,12 @@ internal sealed class DropShieldApiFactory(
                 services.RemoveAll<IReplayState>();
                 services.AddSingleton(replayState);
             }
+
+            if (inventoryState is not null)
+            {
+                services.RemoveAll<IInventoryReservationState>();
+                services.AddSingleton(inventoryState);
+            }
         });
     }
 
@@ -91,6 +99,10 @@ internal sealed class DropShieldApiFactory(
         ["DropShield:ActionProofs:LifetimeSeconds"] = "30",
         ["DropShield:ActionProofs:ReplayTtlMarginSeconds"] = "30",
         ["DropShield:ActionProofs:MaximumInMemoryMarkers"] = "100000",
+        ["DropShield:InventoryReservation:Enabled"] = "false",
+        ["DropShield:InventoryReservation:InitialStock"] = "500",
+        ["DropShield:InventoryReservation:ReservationTtlSeconds"] = "300",
+        ["DropShield:InventoryReservation:MaximumInMemoryReservations"] = "100000",
         ["DropShield:Policies:Stock:Enabled"] = "true",
         ["DropShield:Policies:Stock:ClientPermitLimit"] = "2",
         ["DropShield:Policies:Stock:ClientWindowSeconds"] = "60",

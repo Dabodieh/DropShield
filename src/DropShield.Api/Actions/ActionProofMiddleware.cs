@@ -7,6 +7,7 @@ namespace DropShield.Api.Actions;
 
 public sealed class ActionProofMiddleware(RequestDelegate next)
 {
+    public const string AuthorizedSessionItemKey = "DropShield.ActionProof.Session";
     public async Task InvokeAsync(
         HttpContext context,
         AdmissionProofAuthorizer admissionAuthorizer,
@@ -30,6 +31,7 @@ public sealed class ActionProofMiddleware(RequestDelegate next)
             await WriteAdmissionRequiredAsync(context);
             return;
         }
+        context.Items[AuthorizedSessionItemKey] = admission.SessionId!;
 
         var action = ActionProofPolicy.GetMutationAction(context.Request);
         if (!context.Request.Headers.TryGetValue(

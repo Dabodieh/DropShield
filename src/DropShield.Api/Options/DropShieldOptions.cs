@@ -26,6 +26,8 @@ public sealed class DropShieldOptions
 
     public ActionProofOptions ActionProofs { get; set; } = new();
 
+    public InventoryReservationOptions InventoryReservation { get; set; } = new();
+
     public TrafficPoliciesOptions Policies { get; set; } = new();
 }
 
@@ -105,6 +107,17 @@ public sealed class ActionProofOptions
     public int ReplayTtlMarginSeconds { get; set; } = 30;
 
     public int MaximumInMemoryMarkers { get; set; } = 100_000;
+}
+
+public sealed class InventoryReservationOptions
+{
+    public bool Enabled { get; set; }
+
+    public int InitialStock { get; set; } = 500;
+
+    public int ReservationTtlSeconds { get; set; } = 300;
+
+    public int MaximumInMemoryReservations { get; set; } = 100_000;
 }
 
 public sealed class TrafficPoliciesOptions

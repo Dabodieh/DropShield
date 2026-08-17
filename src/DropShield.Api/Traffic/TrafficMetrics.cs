@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using DropShield.Api.Admission;
 using DropShield.Api.Actions;
+using DropShield.Api.Inventory;
 
 namespace DropShield.Api.Traffic;
 
@@ -39,6 +40,13 @@ public sealed class TrafficMetrics
     private long _checkoutActionsConsumed;
     private long _replayRejected;
     private long _replayStateUnavailable;
+    private long _reservationsCreated;
+    private long _reservationsReused;
+    private long _reservationsReleased;
+    private long _reservationsExpired;
+    private long _reservationsCommitted;
+    private long _reservationRejectedOutOfStock;
+    private long _reservationStateFailures;
 
     public TrafficMetrics(TimeProvider timeProvider)
     {
@@ -203,6 +211,36 @@ public sealed class TrafficMetrics
 
     public void RecordReplayStateUnavailable() => Interlocked.Increment(ref _replayStateUnavailable);
 
+    public void RecordReservation(ReservationStatus status, int expiredReservations = 0)
+    {
+        if (expiredReservations > 0)
+        {
+            Interlocked.Add(ref _reservationsExpired, expiredReservations);
+        }
+
+        switch (status)
+        {
+            case ReservationStatus.Reserved:
+                Interlocked.Increment(ref _reservationsCreated);
+                break;
+            case ReservationStatus.Existing:
+                Interlocked.Increment(ref _reservationsReused);
+                break;
+            case ReservationStatus.Released:
+                Interlocked.Increment(ref _reservationsReleased);
+                break;
+            case ReservationStatus.Committed:
+                Interlocked.Increment(ref _reservationsCommitted);
+                break;
+            case ReservationStatus.OutOfStock:
+                Interlocked.Increment(ref _reservationRejectedOutOfStock);
+                break;
+        }
+    }
+
+    public void RecordReservationStateFailure() =>
+        Interlocked.Increment(ref _reservationStateFailures);
+
     public void RecordOriginLatency(TimeSpan duration) =>
         _originLatency.Record(duration);
 
@@ -261,6 +299,14 @@ public sealed class TrafficMetrics
                 Interlocked.Read(ref _checkoutActionsConsumed),
                 Interlocked.Read(ref _replayRejected),
                 Interlocked.Read(ref _replayStateUnavailable)),
+            new InventoryReservationMetricsSnapshot(
+                Interlocked.Read(ref _reservationsCreated),
+                Interlocked.Read(ref _reservationsReused),
+                Interlocked.Read(ref _reservationsReleased),
+                Interlocked.Read(ref _reservationsExpired),
+                Interlocked.Read(ref _reservationsCommitted),
+                Interlocked.Read(ref _reservationRejectedOutOfStock),
+                Interlocked.Read(ref _reservationStateFailures)),
             _totalStatusCodes.GetSnapshot(),
             new LatencyMetricsSnapshot(
                 _endToEndLatency.GetSnapshot(),
@@ -306,6 +352,13 @@ public sealed class TrafficMetrics
         Interlocked.Exchange(ref _checkoutActionsConsumed, 0);
         Interlocked.Exchange(ref _replayRejected, 0);
         Interlocked.Exchange(ref _replayStateUnavailable, 0);
+        Interlocked.Exchange(ref _reservationsCreated, 0);
+        Interlocked.Exchange(ref _reservationsReused, 0);
+        Interlocked.Exchange(ref _reservationsReleased, 0);
+        Interlocked.Exchange(ref _reservationsExpired, 0);
+        Interlocked.Exchange(ref _reservationsCommitted, 0);
+        Interlocked.Exchange(ref _reservationRejectedOutOfStock, 0);
+        Interlocked.Exchange(ref _reservationStateFailures, 0);
         Interlocked.Exchange(
             ref _collectionStartedAtUtcTicks,
             _timeProvider.GetUtcNow().UtcTicks);
@@ -457,6 +510,7 @@ public sealed record TrafficMetricsSnapshot(
     AdmissionMetricsSnapshot Admission,
     AdmissionTokenMetricsSnapshot AdmissionTokens,
     ActionProofMetricsSnapshot ActionProofs,
+    InventoryReservationMetricsSnapshot InventoryReservations,
     StatusCodeSnapshot StatusCodes,
     LatencyMetricsSnapshot LatencyMilliseconds,
     RollingRateSnapshot RecentRates,
@@ -500,6 +554,15 @@ public sealed record ActionProofMetricsSnapshot(
     long CheckoutActionsConsumed,
     long ReplayRejected,
     long ReplayStateUnavailable);
+
+public sealed record InventoryReservationMetricsSnapshot(
+    long ReservationsCreated,
+    long ReservationsReused,
+    long ReservationsReleased,
+    long ReservationsExpired,
+    long ReservationsCommitted,
+    long ReservationRejectedOutOfStock,
+    long ReservationStateFailures);
 
 public sealed record StatusCodeSnapshot(
     long Success2xx,

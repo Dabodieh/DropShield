@@ -6,22 +6,22 @@ DropShield is an edge-first, ecommerce-aware flash-drop protection architecture 
 
 The core remains edge-provider-neutral. Provider-specific capabilities belong behind future adapters rather than inside DropShield's core policy and commerce concepts.
 
-This document primarily describes future direction. Phase 3 implements provider-neutral traffic-rate controls, Phase 4 adds bounded internal observability, Phase 5 adds optional Redis-backed shared enforcement state, Phase 6 adds bounded waiting/admission decisions, Phase 7 adds scoped signed admission proof, and Phase 8 adds one-time cart/checkout action proof. Adobe Commerce and edge-provider integrations remain future work.
+This document primarily describes future direction. Phase 3 implements provider-neutral traffic-rate controls, Phase 4 adds bounded internal observability, Phase 5 adds optional Redis-backed shared enforcement state, Phase 6 adds bounded waiting/admission decisions, Phase 7 adds scoped signed admission proof, Phase 8 adds one-time cart/checkout action proof, and Phase 9 adds a synthetic inventory reservation ledger. Adobe Commerce and edge-provider integrations remain future work.
 
 ## Current local implementation
 
 The working PoC keeps the synthetic origin and protection boundary separate:
 
 ```text
-local client → DropShield.Api → per-client rate policy → proof + admission → action consume → DropShield.DemoStore
-                    │                  │                                           │
-                    │                  └─ abuse 429                                 └─ admitted, waiting 202, or safe proof/replay rejection
+local client → DropShield.Api → per-client rate policy → proof + admission → action consume → reserve/commit → DropShield.DemoStore
+                    │                  │                                                           │
+                    │                  └─ abuse 429                                                 └─ admitted, waiting 202, or safe proof/replay/reservation rejection
                     └─ InMemory or shared Redis state + per-instance metrics
 ```
 
 The observability layer records only fixed route categories, aggregate outcomes, bounded latency histograms, and a short rolling-rate window. It does not retain request or identity histories and does not introduce a provider-specific telemetry dependency. See [Phase 4 observability](PHASE4_OBSERVABILITY.md).
 
-Redis is an optional implementation detail behind focused traffic, admission-state, and replay-state boundaries. It stores expiry-driven fixed-window counts, bounded HMAC-derived active/waiting session members, and short-lived derived replay markers. Signed tokens are locally verified and are not stored in Redis. It does not store carts, inventory, customer identity, request contents, cookies, tokens, or telemetry. See [Phase 5 distributed state](PHASE5_DISTRIBUTED_STATE.md), [Phase 6 admission control](PHASE6_ADMISSION_CONTROL.md), [Phase 7 signed admission](PHASE7_SIGNED_ADMISSION.md), [Phase 8 replay protection](PHASE8_REPLAY_PROTECTION.md), [ADR-003](adr/ADR-003-distributed-state-provider.md), [ADR-004](adr/ADR-004-admission-control.md), and [ADR-005](adr/ADR-005-signed-admission-tokens.md).
+Redis is an optional implementation detail behind focused traffic, admission-state, replay-state, and synthetic-reservation boundaries. It stores expiry-driven fixed-window counts, bounded HMAC-derived active/waiting session members, short-lived derived replay markers, and a synthetic reservation counter hash with an expiry sorted set. Signed tokens are locally verified and are not stored in Redis. It does not store carts, real retailer inventory, customer identity, request contents, cookies, tokens, or telemetry. See [Phase 5 distributed state](PHASE5_DISTRIBUTED_STATE.md), [Phase 6 admission control](PHASE6_ADMISSION_CONTROL.md), [Phase 7 signed admission](PHASE7_SIGNED_ADMISSION.md), [Phase 8 replay protection](PHASE8_REPLAY_PROTECTION.md), and [Phase 9 inventory reservation](PHASE9_INVENTORY_RESERVATION.md).
 
 ## Conceptual architecture
 

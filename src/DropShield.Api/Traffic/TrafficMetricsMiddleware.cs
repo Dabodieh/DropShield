@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using DropShield.Api.Actions;
+using DropShield.Api.Behaviour;
 using DropShield.Api.Options;
 using Microsoft.Extensions.Options;
 
@@ -9,6 +11,7 @@ public sealed class TrafficMetricsMiddleware(RequestDelegate next)
     public async Task InvokeAsync(
         HttpContext context,
         TrafficMetrics metrics,
+        BehaviourActivityRecorder behaviourRecorder,
         IOptions<DropShieldOptions> options,
         ILogger<TrafficMetricsMiddleware> logger)
     {
@@ -63,6 +66,28 @@ public sealed class TrafficMetricsMiddleware(RequestDelegate next)
                     : context.Response.StatusCode,
                 endToEnd,
                 processing);
+            await behaviourRecorder.RecordAsync(
+                context,
+                BehaviourEventType.Request,
+                CancellationToken.None);
+            if (isProtectedStock)
+            {
+                await behaviourRecorder.RecordAsync(
+                    context,
+                    BehaviourEventType.StockRequest,
+                    CancellationToken.None);
+            }
+
+            var isTransaction = route is TrafficRoute.Cart or TrafficRoute.Checkout ||
+                                (route == TrafficRoute.ActionProof &&
+                                 ActionProofPolicy.TryGetAction(context.Request, out _));
+            if (isTransaction)
+            {
+                await behaviourRecorder.RecordAsync(
+                    context,
+                    BehaviourEventType.Transaction,
+                    CancellationToken.None);
+            }
         }
     }
 }

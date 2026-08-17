@@ -6,7 +6,7 @@ DropShield is an edge-first, ecommerce-aware flash-drop protection architecture 
 
 The core remains edge-provider-neutral. Provider-specific capabilities belong behind future adapters rather than inside DropShield's core policy and commerce concepts.
 
-This document primarily describes future direction. Phase 3 implements provider-neutral traffic-rate controls, Phase 4 adds bounded internal observability, Phase 5 adds optional Redis-backed shared enforcement state, Phase 6 adds bounded waiting/admission decisions, Phase 7 adds scoped signed admission proof, Phase 8 adds one-time cart/checkout action proof, and Phase 9 adds a synthetic inventory reservation ledger. Adobe Commerce and edge-provider integrations remain future work.
+This document primarily describes future direction. Phase 3 implements provider-neutral traffic-rate controls, Phase 4 adds bounded internal observability, Phase 5 adds optional Redis-backed shared enforcement state, Phase 6 adds bounded waiting/admission decisions, Phase 7 adds scoped signed admission proof, Phase 8 adds one-time cart/checkout action proof, Phase 9 adds a synthetic inventory reservation ledger, and Phase 10 adds conservative short-lived behavioural scoring. Adobe Commerce and edge-provider integrations remain future work.
 
 ## Current local implementation
 

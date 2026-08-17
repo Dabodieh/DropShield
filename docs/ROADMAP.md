@@ -1,6 +1,6 @@
 # DropShield roadmap
 
-Current status: Phases 1–9 complete. Phase 10 has not started.
+Current status: Phases 1–10 complete. Phase 11 has not started.
 
 - Phase 1 — Foundation / Synthetic Demo Store
 - Phase 2 — Baseline Load Testing

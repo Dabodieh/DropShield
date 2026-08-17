@@ -28,6 +28,8 @@ public sealed class DropShieldOptions
 
     public InventoryReservationOptions InventoryReservation { get; set; } = new();
 
+    public BehaviourScoringOptions BehaviourScoring { get; set; } = new();
+
     public TrafficPoliciesOptions Policies { get; set; } = new();
 }
 
@@ -118,6 +120,21 @@ public sealed class InventoryReservationOptions
     public int ReservationTtlSeconds { get; set; } = 300;
 
     public int MaximumInMemoryReservations { get; set; } = 100_000;
+}
+
+public sealed class BehaviourScoringOptions
+{
+    public bool Enabled { get; set; }
+
+    public int ObservationWindowSeconds { get; set; } = 60;
+
+    public int StateTtlSeconds { get; set; } = 120;
+
+    public int MaximumInMemoryActors { get; set; } = 100_000;
+
+    public int MaximumEventsPerActor { get; set; } = 128;
+
+    public int RestrictionRetryAfterSeconds { get; set; } = 5;
 }
 
 public sealed class TrafficPoliciesOptions

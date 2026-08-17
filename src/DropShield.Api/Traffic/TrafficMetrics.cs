@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using DropShield.Api.Admission;
 using DropShield.Api.Actions;
+using DropShield.Api.Behaviour;
 using DropShield.Api.Inventory;
 
 namespace DropShield.Api.Traffic;
@@ -47,6 +48,17 @@ public sealed class TrafficMetrics
     private long _reservationsCommitted;
     private long _reservationRejectedOutOfStock;
     private long _reservationStateFailures;
+    private long _behaviourObservations;
+    private long _behaviourStockObservations;
+    private long _behaviourRateLimitObservations;
+    private long _behaviourReplayObservations;
+    private long _behaviourInvalidProofObservations;
+    private long _behaviourTransactionObservations;
+    private long _behaviourElevatedScores;
+    private long _behaviourSuspiciousScores;
+    private long _behaviourHighScores;
+    private long _behaviourRestrictions;
+    private long _behaviourStateFailures;
 
     public TrafficMetrics(TimeProvider timeProvider)
     {
@@ -241,6 +253,49 @@ public sealed class TrafficMetrics
     public void RecordReservationStateFailure() =>
         Interlocked.Increment(ref _reservationStateFailures);
 
+    public void RecordBehaviourObservation(BehaviourEventType eventType)
+    {
+        Interlocked.Increment(ref _behaviourObservations);
+        switch (eventType)
+        {
+            case BehaviourEventType.StockRequest:
+                Interlocked.Increment(ref _behaviourStockObservations);
+                break;
+            case BehaviourEventType.RateLimited:
+                Interlocked.Increment(ref _behaviourRateLimitObservations);
+                break;
+            case BehaviourEventType.ReplayRejected:
+                Interlocked.Increment(ref _behaviourReplayObservations);
+                break;
+            case BehaviourEventType.InvalidProof:
+                Interlocked.Increment(ref _behaviourInvalidProofObservations);
+                break;
+            case BehaviourEventType.Transaction:
+                Interlocked.Increment(ref _behaviourTransactionObservations);
+                break;
+        }
+    }
+
+    public void RecordBehaviourScore(BehaviourRiskLevel level)
+    {
+        switch (level)
+        {
+            case BehaviourRiskLevel.Elevated:
+                Interlocked.Increment(ref _behaviourElevatedScores);
+                break;
+            case BehaviourRiskLevel.Suspicious:
+                Interlocked.Increment(ref _behaviourSuspiciousScores);
+                break;
+            case BehaviourRiskLevel.High:
+                Interlocked.Increment(ref _behaviourHighScores);
+                break;
+        }
+    }
+
+    public void RecordBehaviourRestriction() => Interlocked.Increment(ref _behaviourRestrictions);
+
+    public void RecordBehaviourStateFailure() => Interlocked.Increment(ref _behaviourStateFailures);
+
     public void RecordOriginLatency(TimeSpan duration) =>
         _originLatency.Record(duration);
 
@@ -307,6 +362,18 @@ public sealed class TrafficMetrics
                 Interlocked.Read(ref _reservationsCommitted),
                 Interlocked.Read(ref _reservationRejectedOutOfStock),
                 Interlocked.Read(ref _reservationStateFailures)),
+            new BehaviourMetricsSnapshot(
+                Interlocked.Read(ref _behaviourObservations),
+                Interlocked.Read(ref _behaviourStockObservations),
+                Interlocked.Read(ref _behaviourRateLimitObservations),
+                Interlocked.Read(ref _behaviourReplayObservations),
+                Interlocked.Read(ref _behaviourInvalidProofObservations),
+                Interlocked.Read(ref _behaviourTransactionObservations),
+                Interlocked.Read(ref _behaviourElevatedScores),
+                Interlocked.Read(ref _behaviourSuspiciousScores),
+                Interlocked.Read(ref _behaviourHighScores),
+                Interlocked.Read(ref _behaviourRestrictions),
+                Interlocked.Read(ref _behaviourStateFailures)),
             _totalStatusCodes.GetSnapshot(),
             new LatencyMetricsSnapshot(
                 _endToEndLatency.GetSnapshot(),
@@ -359,6 +426,17 @@ public sealed class TrafficMetrics
         Interlocked.Exchange(ref _reservationsCommitted, 0);
         Interlocked.Exchange(ref _reservationRejectedOutOfStock, 0);
         Interlocked.Exchange(ref _reservationStateFailures, 0);
+        Interlocked.Exchange(ref _behaviourObservations, 0);
+        Interlocked.Exchange(ref _behaviourStockObservations, 0);
+        Interlocked.Exchange(ref _behaviourRateLimitObservations, 0);
+        Interlocked.Exchange(ref _behaviourReplayObservations, 0);
+        Interlocked.Exchange(ref _behaviourInvalidProofObservations, 0);
+        Interlocked.Exchange(ref _behaviourTransactionObservations, 0);
+        Interlocked.Exchange(ref _behaviourElevatedScores, 0);
+        Interlocked.Exchange(ref _behaviourSuspiciousScores, 0);
+        Interlocked.Exchange(ref _behaviourHighScores, 0);
+        Interlocked.Exchange(ref _behaviourRestrictions, 0);
+        Interlocked.Exchange(ref _behaviourStateFailures, 0);
         Interlocked.Exchange(
             ref _collectionStartedAtUtcTicks,
             _timeProvider.GetUtcNow().UtcTicks);
@@ -511,6 +589,7 @@ public sealed record TrafficMetricsSnapshot(
     AdmissionTokenMetricsSnapshot AdmissionTokens,
     ActionProofMetricsSnapshot ActionProofs,
     InventoryReservationMetricsSnapshot InventoryReservations,
+    BehaviourMetricsSnapshot Behaviour,
     StatusCodeSnapshot StatusCodes,
     LatencyMetricsSnapshot LatencyMilliseconds,
     RollingRateSnapshot RecentRates,
@@ -563,6 +642,19 @@ public sealed record InventoryReservationMetricsSnapshot(
     long ReservationsCommitted,
     long ReservationRejectedOutOfStock,
     long ReservationStateFailures);
+
+public sealed record BehaviourMetricsSnapshot(
+    long Observations,
+    long StockObservations,
+    long RateLimitObservations,
+    long ReplayObservations,
+    long InvalidProofObservations,
+    long TransactionObservations,
+    long ElevatedScores,
+    long SuspiciousScores,
+    long HighScores,
+    long Restrictions,
+    long StateFailures);
 
 public sealed record StatusCodeSnapshot(
     long Success2xx,

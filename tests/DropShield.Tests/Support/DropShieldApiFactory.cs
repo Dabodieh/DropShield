@@ -1,6 +1,7 @@
 using DropShield.Api;
 using DropShield.Api.Admission;
 using DropShield.Api.Actions;
+using DropShield.Api.Behaviour;
 using DropShield.Api.Inventory;
 using DropShield.Api.Origin;
 using DropShield.Api.State;
@@ -19,7 +20,8 @@ internal sealed class DropShieldApiFactory(
     IAdmissionState? admissionState = null,
     TimeProvider? timeProvider = null,
     IReplayState? replayState = null,
-    IInventoryReservationState? inventoryState = null)
+    IInventoryReservationState? inventoryState = null,
+    IBehaviourState? behaviourState = null)
     : WebApplicationFactory<ApiAssemblyMarker>
 {
     private readonly IReadOnlyDictionary<string, string?> _overrides = overrides ??
@@ -68,6 +70,12 @@ internal sealed class DropShieldApiFactory(
                 services.RemoveAll<IInventoryReservationState>();
                 services.AddSingleton(inventoryState);
             }
+
+            if (behaviourState is not null)
+            {
+                services.RemoveAll<IBehaviourState>();
+                services.AddSingleton(behaviourState);
+            }
         });
     }
 
@@ -103,6 +111,12 @@ internal sealed class DropShieldApiFactory(
         ["DropShield:InventoryReservation:InitialStock"] = "500",
         ["DropShield:InventoryReservation:ReservationTtlSeconds"] = "300",
         ["DropShield:InventoryReservation:MaximumInMemoryReservations"] = "100000",
+        ["DropShield:BehaviourScoring:Enabled"] = "false",
+        ["DropShield:BehaviourScoring:ObservationWindowSeconds"] = "60",
+        ["DropShield:BehaviourScoring:StateTtlSeconds"] = "120",
+        ["DropShield:BehaviourScoring:MaximumInMemoryActors"] = "100000",
+        ["DropShield:BehaviourScoring:MaximumEventsPerActor"] = "128",
+        ["DropShield:BehaviourScoring:RestrictionRetryAfterSeconds"] = "5",
         ["DropShield:Policies:Stock:Enabled"] = "true",
         ["DropShield:Policies:Stock:ClientPermitLimit"] = "2",
         ["DropShield:Policies:Stock:ClientWindowSeconds"] = "60",

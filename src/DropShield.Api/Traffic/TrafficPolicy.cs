@@ -1,6 +1,7 @@
 using System.Threading.RateLimiting;
 using DropShield.Api.Admission;
 using DropShield.Api.Actions;
+using DropShield.Api.Behaviour;
 using DropShield.Api.Options;
 using Microsoft.AspNetCore.RateLimiting;
 
@@ -40,6 +41,11 @@ public static class TrafficPolicy
             };
             httpContext.RequestServices.GetRequiredService<TrafficMetrics>()
                 .RecordRateLimited(route, isProtectedStock, reason);
+            await httpContext.RequestServices.GetRequiredService<BehaviourActivityRecorder>()
+                .RecordAsync(
+                    httpContext,
+                    BehaviourEventType.RateLimited,
+                    CancellationToken.None);
 
             var retryAfter = TimeSpan.FromSeconds(1);
             if (rejectionContext.Lease.TryGetMetadata(

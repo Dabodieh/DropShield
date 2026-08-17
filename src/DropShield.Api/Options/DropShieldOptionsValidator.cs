@@ -84,6 +84,7 @@ public sealed partial class DropShieldOptionsValidator(IHostEnvironment environm
         ValidateAdmissionTokens(options, isControlledEnvironment, failures);
         ValidateActionProofs(options, failures);
         ValidateInventoryReservation(options, failures);
+        ValidateBehaviourScoring(options, failures);
 
         return failures.Count == 0
             ? ValidateOptionsResult.Success
@@ -275,6 +276,33 @@ public sealed partial class DropShieldOptionsValidator(IHostEnvironment environm
             inventory.ReservationTtlSeconds > options.Admission.SessionTtlSeconds)
         {
             failures.Add("DropShield reservation TTL must not exceed the admission session TTL.");
+        }
+    }
+
+    private static void ValidateBehaviourScoring(
+        DropShieldOptions options,
+        ICollection<string> failures)
+    {
+        var scoring = options.BehaviourScoring;
+        if (!scoring.Enabled)
+        {
+            return;
+        }
+
+        if (!options.Admission.Enabled || !options.AdmissionTokens.Enabled ||
+            !options.ActionProofs.Enabled)
+        {
+            failures.Add("DropShield:BehaviourScoring requires admission, admission tokens, and action proofs.");
+        }
+
+        if (scoring.ObservationWindowSeconds is < 30 or > 120 ||
+            scoring.StateTtlSeconds is < 30 or > 300 ||
+            scoring.StateTtlSeconds < scoring.ObservationWindowSeconds ||
+            scoring.MaximumInMemoryActors is < 1 or > 1_000_000 ||
+            scoring.MaximumEventsPerActor is < 16 or > 1_024 ||
+            scoring.RestrictionRetryAfterSeconds is < 1 or > 60)
+        {
+            failures.Add("DropShield behavioural scoring settings are outside supported bounds.");
         }
     }
 

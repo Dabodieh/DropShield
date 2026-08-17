@@ -1,4 +1,5 @@
 using DropShield.Api.Models;
+using DropShield.Api.Behaviour;
 using DropShield.Api.Options;
 using DropShield.Api.Traffic;
 using Microsoft.Extensions.Options;
@@ -13,6 +14,7 @@ public sealed class ActionProofMiddleware(RequestDelegate next)
         AdmissionProofAuthorizer admissionAuthorizer,
         IActionTokenService tokenService,
         IReplayState replayState,
+        BehaviourActivityRecorder behaviourRecorder,
         TrafficMetrics metrics,
         IOptions<DropShieldOptions> options,
         ILogger<ActionProofMiddleware> logger)
@@ -38,6 +40,10 @@ public sealed class ActionProofMiddleware(RequestDelegate next)
                 configuredOptions.ActionProofs.HeaderName,
                 out var tokenValues) || tokenValues.Count != 1)
         {
+            await behaviourRecorder.RecordAsync(
+                context,
+                BehaviourEventType.InvalidProof,
+                CancellationToken.None);
             await WriteActionRequiredAsync(context);
             return;
         }
@@ -50,6 +56,10 @@ public sealed class ActionProofMiddleware(RequestDelegate next)
         metrics.RecordActionTokenValidation(validation);
         if (!validation.IsValid)
         {
+            await behaviourRecorder.RecordAsync(
+                context,
+                BehaviourEventType.InvalidProof,
+                CancellationToken.None);
             logger.LogDebug(
                 "Action token validation failed with fixed category {ActionTokenFailure}",
                 validation.Failure);
@@ -82,6 +92,10 @@ public sealed class ActionProofMiddleware(RequestDelegate next)
 
         if (!consumption.IsConsumed)
         {
+            await behaviourRecorder.RecordAsync(
+                context,
+                BehaviourEventType.ReplayRejected,
+                CancellationToken.None);
             metrics.RecordReplayRejected();
             logger.LogDebug("Action replay rejected for protected {ActionKind}", action);
             context.Response.StatusCode = StatusCodes.Status409Conflict;

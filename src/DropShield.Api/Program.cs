@@ -1,5 +1,6 @@
 using DropShield.Api.Admission;
 using DropShield.Api.Actions;
+using DropShield.Api.Behaviour;
 using DropShield.Api.Inventory;
 using DropShield.Api.Models;
 using DropShield.Api.Options;
@@ -42,6 +43,14 @@ builder.Services.AddSingleton<IInventoryReservationState>(services =>
     services.GetRequiredService<IOptions<DropShieldOptions>>().Value.StateProvider == TrafficStateProvider.Redis
         ? services.GetRequiredService<RedisInventoryReservationState>()
         : services.GetRequiredService<InMemoryInventoryReservationState>());
+builder.Services.AddSingleton<BehaviourIdentityProvider>();
+builder.Services.AddSingleton<InMemoryBehaviourState>();
+builder.Services.AddSingleton<RedisBehaviourState>();
+builder.Services.AddSingleton<IBehaviourState>(services =>
+    services.GetRequiredService<IOptions<DropShieldOptions>>().Value.StateProvider == TrafficStateProvider.Redis
+        ? services.GetRequiredService<RedisBehaviourState>()
+        : services.GetRequiredService<InMemoryBehaviourState>());
+builder.Services.AddSingleton<BehaviourActivityRecorder>();
 builder.Services.AddSingleton<InMemoryAdmissionState>();
 builder.Services.AddSingleton<RedisAdmissionKeyBuilder>();
 builder.Services.AddSingleton<RedisAdmissionState>();
@@ -81,6 +90,7 @@ else
 }
 app.UseMiddleware<AdmissionTokenMiddleware>();
 app.UseMiddleware<AdmissionControlMiddleware>();
+app.UseMiddleware<BehaviourPolicyMiddleware>();
 app.UseMiddleware<ActionProofMiddleware>();
 app.UseMiddleware<InventoryReservationMiddleware>();
 

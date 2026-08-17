@@ -15,11 +15,11 @@ This project must not be used to send abusive traffic to third-party websites. P
 
 ## Current phase
 
-**Phase 9 — Synthetic Inventory Reservation**
+**Phase 10 — Behavioural Bot Scoring**
 
-The completed Phase 1–8 paths remain reproducible. Phase 9 adds a configurable synthetic reservation pool for the protected drop. A valid cart action reserves one unit for its admitted session, a successful checkout commits it, and abandoned reservations return to the available pool after the configured TTL. InMemory remains available for one-process local development; Redis mode coordinates reservation transitions across instances.
+The completed Phase 1–9 paths remain reproducible. Phase 10 adds a short-lived, explainable behavioural score for the protected drop. Fixed recent-activity signals produce a bounded 0–100 score; only the highest risk band temporarily restricts transaction endpoints. It is a conservative demonstration policy, not an AI bot detector or long-term reputation system.
 
-Per-client rate limits remain the abuse boundary. Waiting clients receive JSON HTTP 202 rather than an exact queue position, while admitted clients receive an HttpOnly admission-proof cookie. Protected cart and checkout requests additionally require a short-lived `X-DropShield-Action` proof. The reservation ledger is synthetic only: real inventory allocation must remain coordinated with Adobe Commerce and retailer inventory/ERP systems. Bot classification, adaptive admission, Adobe Commerce integration, and edge-provider integration remain future work.
+Per-client rate limits remain the abuse boundary. Waiting clients receive JSON HTTP 202 rather than an exact queue position, while admitted clients receive an HttpOnly admission-proof cookie. Protected cart and checkout requests additionally require a short-lived `X-DropShield-Action` proof. The reservation ledger is synthetic only: real inventory allocation must remain coordinated with Adobe Commerce and retailer inventory/ERP systems. Adaptive admission, Adobe Commerce integration, and edge-provider integration remain future work.
 
 ## Architecture direction
 

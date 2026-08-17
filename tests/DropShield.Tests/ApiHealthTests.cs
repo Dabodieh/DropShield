@@ -24,8 +24,13 @@ public sealed class ApiHealthTests : IClassFixture<WebApplicationFactory<ApiAsse
         Assert.NotNull(body);
         Assert.Equal("healthy", body.Status);
         Assert.Equal("DropShield.Api", body.Service);
+        Assert.Equal("InMemory", body.StateProvider);
+        Assert.Equal("available", body.State);
     }
 
-    private sealed record HealthResponse(string Status, string Service);
+    private sealed record HealthResponse(
+        string Status,
+        string Service,
+        string StateProvider,
+        string State);
 }
-

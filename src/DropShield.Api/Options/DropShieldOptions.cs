@@ -6,6 +6,8 @@ public sealed class DropShieldOptions
 
     public bool Enabled { get; set; } = true;
 
+    public TrafficStateProvider StateProvider { get; set; } = TrafficStateProvider.InMemory;
+
     public string OriginBaseUrl { get; set; } = "http://localhost:5058";
 
     public int OriginTimeoutSeconds { get; set; } = 10;
@@ -16,7 +18,15 @@ public sealed class DropShieldOptions
 
     public InternalMetricsOptions InternalMetrics { get; set; } = new();
 
+    public RedisStateOptions Redis { get; set; } = new();
+
     public TrafficPoliciesOptions Policies { get; set; } = new();
+}
+
+public enum TrafficStateProvider
+{
+    InMemory,
+    Redis,
 }
 
 public sealed class SyntheticClientIdentityOptions
@@ -29,6 +39,21 @@ public sealed class SyntheticClientIdentityOptions
 public sealed class InternalMetricsOptions
 {
     public bool Enabled { get; set; }
+}
+
+public sealed class RedisStateOptions
+{
+    public string ConnectionString { get; set; } = "127.0.0.1:6379";
+
+    public int Database { get; set; }
+
+    public string KeyPrefix { get; set; } = "dropshield:v1";
+
+    public string IdentityHashKey { get; set; } = string.Empty;
+
+    public int ConnectTimeoutMilliseconds { get; set; } = 1_000;
+
+    public int OperationTimeoutMilliseconds { get; set; } = 1_000;
 }
 
 public sealed class TrafficPoliciesOptions

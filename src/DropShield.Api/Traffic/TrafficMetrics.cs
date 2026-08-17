@@ -19,6 +19,7 @@ public sealed class TrafficMetrics
     private readonly RollingTrafficWindow _rollingWindow;
     private long _collectionStartedAtUtcTicks;
     private long _perClientRejections;
+    private long _aggregateRejections;
     private long _protectedStockChainedRejections;
     private long _unattributedRejections;
 
@@ -71,6 +72,9 @@ public sealed class TrafficMetrics
             case RateLimitReason.PerClient:
                 Interlocked.Increment(ref _perClientRejections);
                 break;
+            case RateLimitReason.Aggregate:
+                Interlocked.Increment(ref _aggregateRejections);
+                break;
             case RateLimitReason.ProtectedStockChained:
                 Interlocked.Increment(ref _protectedStockChainedRejections);
                 break;
@@ -99,6 +103,16 @@ public sealed class TrafficMetrics
         if (isProtectedStock)
         {
             _protectedStock.RecordInternalFailure();
+        }
+    }
+
+    public void RecordStateFailure(TrafficRoute route, bool isProtectedStock)
+    {
+        _total.RecordStateFailure();
+        GetRouteCounters(route).RecordStateFailure();
+        if (isProtectedStock)
+        {
+            _protectedStock.RecordStateFailure();
         }
     }
 
@@ -139,6 +153,7 @@ public sealed class TrafficMetrics
             _total.GetSnapshot(),
             new RateLimitReasonSnapshot(
                 Interlocked.Read(ref _perClientRejections),
+                Interlocked.Read(ref _aggregateRejections),
                 Interlocked.Read(ref _protectedStockChainedRejections),
                 Interlocked.Read(ref _unattributedRejections)),
             _totalStatusCodes.GetSnapshot(),
@@ -168,6 +183,7 @@ public sealed class TrafficMetrics
         _originLatency.Reset();
         _rollingWindow.Reset();
         Interlocked.Exchange(ref _perClientRejections, 0);
+        Interlocked.Exchange(ref _aggregateRejections, 0);
         Interlocked.Exchange(ref _protectedStockChainedRejections, 0);
         Interlocked.Exchange(ref _unattributedRejections, 0);
         Interlocked.Exchange(
@@ -198,6 +214,7 @@ public sealed class TrafficMetrics
         private long _rateLimited;
         private long _upstreamFailures;
         private long _internalFailures;
+        private long _stateFailures;
 
         public void RecordIncoming() => Interlocked.Increment(ref _incoming);
 
@@ -208,6 +225,8 @@ public sealed class TrafficMetrics
         public void RecordUpstreamFailure() => Interlocked.Increment(ref _upstreamFailures);
 
         public void RecordInternalFailure() => Interlocked.Increment(ref _internalFailures);
+
+        public void RecordStateFailure() => Interlocked.Increment(ref _stateFailures);
 
         public TrafficCountersSnapshot GetSnapshot()
         {
@@ -221,6 +240,7 @@ public sealed class TrafficMetrics
                 rateLimited,
                 Interlocked.Read(ref _upstreamFailures),
                 Interlocked.Read(ref _internalFailures),
+                Interlocked.Read(ref _stateFailures),
                 Percentage(forwarded, incoming),
                 Percentage(rateLimited, incoming),
                 Percentage(rateLimited, incoming));
@@ -233,6 +253,7 @@ public sealed class TrafficMetrics
             Interlocked.Exchange(ref _rateLimited, 0);
             Interlocked.Exchange(ref _upstreamFailures, 0);
             Interlocked.Exchange(ref _internalFailures, 0);
+            Interlocked.Exchange(ref _stateFailures, 0);
         }
 
         private static double Percentage(long numerator, long denominator) =>
@@ -303,6 +324,7 @@ public enum RateLimitReason
 {
     Unattributed,
     PerClient,
+    Aggregate,
     ProtectedStockChained,
 }
 
@@ -324,12 +346,14 @@ public sealed record TrafficCountersSnapshot(
     long RateLimited,
     long UpstreamFailures,
     long InternalFailures,
+    long StateFailures,
     double ForwardingPercentage,
     double RejectionPercentage,
     double OriginTrafficReductionPercentage);
 
 public sealed record RateLimitReasonSnapshot(
     long PerClient,
+    long Aggregate,
     long ProtectedStockChained,
     long Unattributed);
 

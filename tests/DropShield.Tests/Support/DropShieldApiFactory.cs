@@ -1,5 +1,6 @@
 using DropShield.Api;
 using DropShield.Api.Origin;
+using DropShield.Api.State;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
@@ -10,7 +11,8 @@ namespace DropShield.Tests.Support;
 
 internal sealed class DropShieldApiFactory(
     IReadOnlyDictionary<string, string?>? overrides = null,
-    string environment = "Testing")
+    string environment = "Testing",
+    IDistributedTrafficState? distributedState = null)
     : WebApplicationFactory<ApiAssemblyMarker>
 {
     private readonly IReadOnlyDictionary<string, string?> _overrides = overrides ??
@@ -30,12 +32,18 @@ internal sealed class DropShieldApiFactory(
         {
             services.RemoveAll<IDemoStoreClient>();
             services.AddSingleton<IDemoStoreClient>(Origin);
+            if (distributedState is not null)
+            {
+                services.RemoveAll<IDistributedTrafficState>();
+                services.AddSingleton(distributedState);
+            }
         });
     }
 
     private static Dictionary<string, string?> DefaultSettings() => new()
     {
         ["DropShield:Enabled"] = "true",
+        ["DropShield:StateProvider"] = "InMemory",
         ["DropShield:OriginBaseUrl"] = "http://localhost:5058",
         ["DropShield:OriginTimeoutSeconds"] = "10",
         ["DropShield:ProtectedProducts:0"] = "pokemon-etb",

@@ -1,0 +1,119 @@
+using DropShield.Api.Options;
+using DropShield.Api.Traffic;
+using Microsoft.Extensions.Options;
+
+namespace DropShield.Api.State;
+
+public sealed class RedisTrafficPolicyEvaluator(
+    IDistributedTrafficState state,
+    ClientIdentityProvider identityProvider,
+    IOptions<DropShieldOptions> options)
+{
+    private readonly DropShieldOptions _options = options.Value;
+
+    public async ValueTask<RedisTrafficPolicyDecision> EvaluateAsync(
+        HttpContext context,
+        CancellationToken cancellationToken)
+    {
+        if (!_options.Enabled)
+        {
+            return RedisTrafficPolicyDecision.Allowed;
+        }
+
+        var route = TrafficRouteClassifier.Classify(context.Request);
+        return route switch
+        {
+            TrafficRoute.Stock when TrafficRouteClassifier.IsProtectedStockRequest(
+                context.Request,
+                _options.ProtectedProducts) =>
+                await EvaluateProtectedStockAsync(context, cancellationToken),
+            TrafficRoute.Cart => await EvaluateClientPolicyAsync(
+                context,
+                TrafficPolicyKind.Cart,
+                _options.Policies.Cart,
+                cancellationToken),
+            TrafficRoute.Checkout => await EvaluateClientPolicyAsync(
+                context,
+                TrafficPolicyKind.Checkout,
+                _options.Policies.Checkout,
+                cancellationToken),
+            _ => RedisTrafficPolicyDecision.Allowed,
+        };
+    }
+
+    private async ValueTask<RedisTrafficPolicyDecision> EvaluateProtectedStockAsync(
+        HttpContext context,
+        CancellationToken cancellationToken)
+    {
+        var policy = _options.Policies.Stock;
+        if (!policy.Enabled)
+        {
+            return RedisTrafficPolicyDecision.Allowed;
+        }
+
+        var clientDecision = await EvaluateClientPolicyAsync(
+            context,
+            TrafficPolicyKind.Stock,
+            policy,
+            cancellationToken);
+        if (!clientDecision.IsAllowed)
+        {
+            return clientDecision;
+        }
+
+        var aggregateLease = await state.TryAcquireAsync(
+            new DistributedTrafficRequest(
+                TrafficPolicyKind.Stock,
+                TrafficLimitScope.Aggregate,
+                ClientPartition: null,
+                policy.AggregatePermitLimit,
+                TimeSpan.FromSeconds(policy.AggregateWindowSeconds)),
+            cancellationToken);
+
+        return aggregateLease.IsAcquired
+            ? RedisTrafficPolicyDecision.Allowed
+            : new RedisTrafficPolicyDecision(
+                false,
+                RateLimitReason.Aggregate,
+                aggregateLease.RetryAfter);
+    }
+
+    private async ValueTask<RedisTrafficPolicyDecision> EvaluateClientPolicyAsync(
+        HttpContext context,
+        TrafficPolicyKind policyKind,
+        ClientPolicyOptions policy,
+        CancellationToken cancellationToken)
+    {
+        if (!policy.Enabled)
+        {
+            return RedisTrafficPolicyDecision.Allowed;
+        }
+
+        var lease = await state.TryAcquireAsync(
+            new DistributedTrafficRequest(
+                policyKind,
+                TrafficLimitScope.PerClient,
+                identityProvider.GetPartitionKey(context),
+                policy.ClientPermitLimit,
+                TimeSpan.FromSeconds(policy.ClientWindowSeconds)),
+            cancellationToken);
+
+        return lease.IsAcquired
+            ? RedisTrafficPolicyDecision.Allowed
+            : new RedisTrafficPolicyDecision(
+                false,
+                RateLimitReason.PerClient,
+                lease.RetryAfter);
+    }
+}
+
+public sealed record RedisTrafficPolicyDecision(
+    bool IsAllowed,
+    RateLimitReason Reason,
+    TimeSpan RetryAfter)
+{
+    public static RedisTrafficPolicyDecision Allowed { get; } = new(
+        true,
+        RateLimitReason.Unattributed,
+        TimeSpan.Zero);
+}

@@ -65,6 +65,54 @@ public sealed class DropShieldOptionsValidationTests
         Assert.Contains("OriginBaseUrl", exception.ToString(), StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData("example.com:6379")]
+    [InlineData("192.0.2.10:6379")]
+    public void RedisMode_RejectsExternalEndpoints(string connectionString)
+    {
+        var options = ValidOptions();
+        options.StateProvider = TrafficStateProvider.Redis;
+        options.Redis.ConnectionString = connectionString;
+        options.Redis.IdentityHashKey = new string('x', 32);
+
+        var result = new DropShieldOptionsValidator(new TestHostEnvironment("Testing"))
+            .Validate(null, options);
+
+        Assert.True(result.Failed);
+        Assert.Contains(
+            result.Failures,
+            failure => failure.Contains("Redis endpoints", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void RedisMode_RequiresIdentityHashKey()
+    {
+        var options = ValidOptions();
+        options.StateProvider = TrafficStateProvider.Redis;
+        options.Redis.IdentityHashKey = string.Empty;
+
+        var result = new DropShieldOptionsValidator(new TestHostEnvironment("Testing"))
+            .Validate(null, options);
+
+        Assert.True(result.Failed);
+        Assert.Contains(
+            result.Failures,
+            failure => failure.Contains("IdentityHashKey", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void InMemoryMode_DoesNotRequireRedisCredentials()
+    {
+        var options = ValidOptions();
+        options.StateProvider = TrafficStateProvider.InMemory;
+        options.Redis.IdentityHashKey = string.Empty;
+
+        var result = new DropShieldOptionsValidator(new TestHostEnvironment("Testing"))
+            .Validate(null, options);
+
+        Assert.False(result.Failed);
+    }
+
     private static DropShieldOptions ValidOptions() => new()
     {
         OriginBaseUrl = "http://localhost:5058",

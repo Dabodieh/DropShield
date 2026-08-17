@@ -15,11 +15,11 @@ This project must not be used to send abusive traffic to third-party websites. P
 
 ## Current phase
 
-**Phase 4 — Observability**
+**Phase 5 — Distributed State / Redis**
 
-The Phase 1 foundation, Phase 2 unprotected baseline, and Phase 3 protection path remain reproducible. Phase 4 adds bounded in-memory operational metrics for traffic, known routes, failures, status outcomes, latency, protected stock, and recent rates through a development/test-only endpoint.
+The completed Phase 1–4 paths remain reproducible. Phase 5 adds optional shared Redis traffic-policy state for multi-instance deployments while retaining the existing Redis-free InMemory mode.
 
-Phase 4 observes the existing policy; it does not change rate-limit decisions. Bot classification, waiting rooms, queueing, distributed state, signed admission, inventory reservation, adaptive admission, Adobe Commerce integration, and edge-provider integration have not been implemented.
+Redis mode shares protected-stock aggregate and per-client limits plus cart and checkout client limits. Bot classification, waiting rooms, queueing, signed admission, inventory reservation, adaptive admission, Adobe Commerce integration, and edge-provider integration have not been implemented.
 
 ## Architecture direction
 
@@ -42,7 +42,7 @@ See:
 
 ## Projects
 
-- `src/DropShield.Api` — protected local entry point with explicit origin forwarding, Phase 3 traffic policy, and Phase 4 in-memory observability.
+- `src/DropShield.Api` — protected local entry point with explicit forwarding, selectable InMemory/Redis policy state, and per-instance observability.
 - `src/DropShield.DemoStore` — synthetic ecommerce backend with health, product, stock, cart, and checkout endpoints.
 - `tests/DropShield.Tests` — xUnit integration tests for both APIs.
 - `load-tests` — localhost-only k6 smoke, customer, flash-crowd, aggressive-polling, and mixed-drop scenarios.
@@ -144,6 +144,27 @@ Invoke-WebRequest -Method Post http://localhost:5257/internal/metrics/reset
 ```
 
 These endpoints return 404 in Production or when internal metrics are disabled. They expose no client identifiers or request data. See [`docs/PHASE4_OBSERVABILITY.md`](docs/PHASE4_OBSERVABILITY.md) for the schema, metric definitions, bounded implementation, and attribution limits.
+
+## Phase 5 — Optional Redis state
+
+The committed default remains `InMemory` and requires no Redis service. For a controlled local Redis-mode run, start one loopback-only container:
+
+```powershell
+docker run --rm --name dropshield-redis-phase5 -p 127.0.0.1:6379:6379 redis:8.8.1-alpine
+```
+
+Then configure the API process without committing a secret:
+
+```powershell
+$env:DropShield__StateProvider = 'Redis'
+$env:DropShield__Redis__ConnectionString = '127.0.0.1:6379'
+$env:DropShield__Redis__IdentityHashKey = [Convert]::ToHexString(
+    [Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
+
+dotnet run --project src/DropShield.Api
+```
+
+Redis unavailability is fail-closed: protected traffic receives HTTP 503 and is not forwarded or silently placed on a weaker local limiter. See [`docs/PHASE5_DISTRIBUTED_STATE.md`](docs/PHASE5_DISTRIBUTED_STATE.md) and [ADR-003](docs/adr/ADR-003-distributed-state-provider.md).
 
 ## Docker
 

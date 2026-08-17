@@ -1,6 +1,4 @@
-using System.Globalization;
 using System.Threading.RateLimiting;
-using DropShield.Api.Models;
 using DropShield.Api.Options;
 using Microsoft.AspNetCore.RateLimiting;
 
@@ -40,16 +38,13 @@ public static class TrafficPolicy
             httpContext.RequestServices.GetRequiredService<TrafficMetrics>()
                 .RecordRateLimited(route, isProtectedStock, reason);
 
-            var retryAfterSeconds = 1;
+            var retryAfter = TimeSpan.FromSeconds(1);
             if (rejectionContext.Lease.TryGetMetadata(
                     MetadataName.RetryAfter,
-                    out var retryAfter))
+                    out var leaseRetryAfter))
             {
-                retryAfterSeconds = Math.Max(1, (int)Math.Ceiling(retryAfter.TotalSeconds));
+                retryAfter = leaseRetryAfter;
             }
-
-            httpContext.Response.Headers.RetryAfter =
-                retryAfterSeconds.ToString(CultureInfo.InvariantCulture);
 
             var logger = httpContext.RequestServices
                 .GetRequiredService<ILoggerFactory>()
@@ -60,10 +55,9 @@ public static class TrafficPolicy
                 route,
                 reason);
 
-            await httpContext.Response.WriteAsJsonAsync(
-                new GatewayErrorResponse(
-                    "rate_limited",
-                    "Too many requests. Please try again shortly."),
+            await RateLimitResponseWriter.WriteAsync(
+                httpContext,
+                retryAfter,
                 cancellationToken);
         };
     }

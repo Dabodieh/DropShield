@@ -52,6 +52,7 @@ The response has this stable top-level shape:
 - `rateLimited`
 - `upstreamFailures`
 - `internalFailures`
+- `stateFailures` — shared policy-state dependency failures added in Phase 5;
 - `forwardingPercentage`
 - `rejectionPercentage`
 - `originTrafficReductionPercentage`
@@ -103,6 +104,7 @@ The response exposes:
 
 - `perClient` — accurately attributed cart and checkout rejections, because those routes have no aggregate limiter;
 - `protectedStockChained` — a protected-stock rejection from the existing per-client-plus-aggregate chain;
+- `aggregate` — an exactly attributed Redis-mode aggregate rejection added in Phase 5;
 - `unattributed` — any future rejection that cannot safely fit the other categories.
 
 ASP.NET Core's chained rejection lease supplies retry metadata but does not identify which child limiter rejected a protected-stock request. Phase 4 therefore does not guess whether an individual protected-stock 429 came from the per-client or aggregate child. Obtaining perfect attribution would require replacing or materially restructuring the working Phase 3 chain, which is outside this phase.

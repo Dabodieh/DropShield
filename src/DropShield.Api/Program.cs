@@ -1,6 +1,7 @@
 using DropShield.Api.Models;
 using DropShield.Api.Options;
 using DropShield.Api.Origin;
+using DropShield.Api.State;
 using DropShield.Api.Traffic;
 using Microsoft.Extensions.Options;
 
@@ -14,6 +15,10 @@ builder.Services.AddSingleton<IValidateOptions<DropShieldOptions>, DropShieldOpt
 builder.Services.AddSingleton<ClientIdentityProvider>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<TrafficMetrics>();
+builder.Services.AddSingleton<RedisConnectionProvider>();
+builder.Services.AddSingleton<RedisTrafficKeyBuilder>();
+builder.Services.AddSingleton<IDistributedTrafficState, RedisTrafficState>();
+builder.Services.AddSingleton<RedisTrafficPolicyEvaluator>();
 builder.Services.AddTransient<DemoStoreForwarder>();
 builder.Services.AddHttpClient<IDemoStoreClient, DemoStoreClient>((services, client) =>
 {
@@ -28,14 +33,49 @@ builder.Services.AddSingleton<
 
 var app = builder.Build();
 _ = app.Services.GetRequiredService<TrafficMetrics>();
+var configuredOptions = app.Services
+    .GetRequiredService<IOptions<DropShieldOptions>>()
+    .Value;
 
 app.UseRouting();
 app.UseMiddleware<TrafficMetricsMiddleware>();
-app.UseRateLimiter();
+if (configuredOptions.StateProvider == TrafficStateProvider.Redis)
+{
+    app.UseMiddleware<RedisTrafficPolicyMiddleware>();
+}
+else
+{
+    app.UseRateLimiter();
+}
 
 app.MapGet(
     "/health",
-    () => TypedResults.Ok(new HealthResponse("healthy", "DropShield.Api")));
+    async (
+        IServiceProvider services,
+        CancellationToken cancellationToken) =>
+    {
+        var providerName = configuredOptions.StateProvider.ToString();
+        if (configuredOptions.StateProvider == TrafficStateProvider.InMemory)
+        {
+            return Results.Ok(new HealthResponse(
+                "healthy",
+                "DropShield.Api",
+                providerName,
+                "available"));
+        }
+
+        var state = services.GetRequiredService<IDistributedTrafficState>();
+        var stateHealth = await state.GetHealthAsync(cancellationToken);
+        var response = new HealthResponse(
+            stateHealth.IsAvailable ? "healthy" : "unhealthy",
+            "DropShield.Api",
+            providerName,
+            stateHealth.Status);
+
+        return stateHealth.IsAvailable
+            ? Results.Ok(response)
+            : Results.Json(response, statusCode: StatusCodes.Status503ServiceUnavailable);
+    });
 
 app.MapGet(
     "/api/products",

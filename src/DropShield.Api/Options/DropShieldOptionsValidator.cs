@@ -1,5 +1,7 @@
+using System.Net;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Options;
+using StackExchange.Redis;
 
 namespace DropShield.Api.Options;
 
@@ -68,10 +70,72 @@ public sealed partial class DropShieldOptionsValidator(IHostEnvironment environm
             failures.Add("Internal metrics can be enabled only in Development or Testing.");
         }
 
+        if (!Enum.IsDefined(options.StateProvider))
+        {
+            failures.Add("DropShield:StateProvider must be InMemory or Redis.");
+        }
+        else if (options.StateProvider == TrafficStateProvider.Redis)
+        {
+            ValidateRedis(options.Redis, failures);
+        }
+
         return failures.Count == 0
             ? ValidateOptionsResult.Success
             : ValidateOptionsResult.Fail(failures);
     }
+
+    private static void ValidateRedis(
+        RedisStateOptions redisOptions,
+        ICollection<string> failures)
+    {
+        ConfigurationOptions configuration;
+        try
+        {
+            configuration = ConfigurationOptions.Parse(redisOptions.ConnectionString);
+        }
+        catch (Exception exception) when (exception is ArgumentException or FormatException)
+        {
+            failures.Add("DropShield:Redis:ConnectionString is invalid.");
+            return;
+        }
+
+        if (configuration.EndPoints.Count == 0 ||
+            configuration.EndPoints.Any(endpoint => !IsApprovedLocalEndpoint(endpoint)))
+        {
+            failures.Add(
+                "DropShield Redis endpoints must use localhost, loopback, or host.docker.internal.");
+        }
+
+        if (redisOptions.Database < 0)
+        {
+            failures.Add("DropShield:Redis:Database must be zero or greater.");
+        }
+
+        if (!RedisKeyPrefixPattern().IsMatch(redisOptions.KeyPrefix))
+        {
+            failures.Add(
+                "DropShield:Redis:KeyPrefix must be a bounded lowercase namespace.");
+        }
+
+        if (redisOptions.IdentityHashKey.Length < 32)
+        {
+            failures.Add(
+                "DropShield:Redis:IdentityHashKey must contain at least 32 characters in Redis mode.");
+        }
+
+        if (redisOptions.ConnectTimeoutMilliseconds is < 100 or > 10_000 ||
+            redisOptions.OperationTimeoutMilliseconds is < 100 or > 10_000)
+        {
+            failures.Add("DropShield Redis timeouts must be between 100 and 10000 milliseconds.");
+        }
+    }
+
+    private static bool IsApprovedLocalEndpoint(EndPoint endpoint) => endpoint switch
+    {
+        DnsEndPoint dns => AllowedOriginHosts.Contains(dns.Host),
+        IPEndPoint ip => IPAddress.IsLoopback(ip.Address),
+        _ => false,
+    };
 
     private static void ValidateOrigin(string originBaseUrl, ICollection<string> failures)
     {
@@ -108,4 +172,7 @@ public sealed partial class DropShieldOptionsValidator(IHostEnvironment environm
 
     [GeneratedRegex("^[A-Za-z0-9-]+$", RegexOptions.CultureInvariant)]
     private static partial Regex HeaderNamePattern();
+
+    [GeneratedRegex("^[a-z0-9](?:[a-z0-9:-]{0,62}[a-z0-9])?$", RegexOptions.CultureInvariant)]
+    private static partial Regex RedisKeyPrefixPattern();
 }

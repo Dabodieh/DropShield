@@ -8,4 +8,5 @@ public enum TrafficRoute
     Stock,
     Cart,
     Checkout,
+    ActionProof,
 }

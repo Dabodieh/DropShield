@@ -213,6 +213,30 @@ public sealed class DropShieldOptionsValidationTests
         Assert.False(result.Failed);
     }
 
+    [Fact]
+    public void ActionProofs_RejectLifetimeBeyondAdmissionProof()
+    {
+        var options = ValidOptions();
+        options.Admission.Enabled = true;
+        options.AdmissionTokens = new AdmissionTokenOptions
+        {
+            Enabled = true,
+            SigningKey = string.Empty,
+            LifetimeSeconds = 60,
+        };
+        options.ActionProofs = new ActionProofOptions
+        {
+            Enabled = true,
+            LifetimeSeconds = 61,
+        };
+
+        var result = new DropShieldOptionsValidator(new TestHostEnvironment("Testing"))
+            .Validate(null, options);
+
+        Assert.True(result.Failed);
+        Assert.Contains(result.Failures, failure => failure.Contains("ActionProofs:LifetimeSeconds", StringComparison.Ordinal));
+    }
+
     private static DropShieldOptions ValidOptions() => new()
     {
         OriginBaseUrl = "http://localhost:5058",

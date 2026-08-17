@@ -15,11 +15,11 @@ This project must not be used to send abusive traffic to third-party websites. P
 
 ## Current phase
 
-**Phase 7 — Signed Admission Tokens**
+**Phase 8 — Cart and Checkout Replay Protection**
 
-The completed Phase 1–6 paths remain reproducible. Phase 7 adds a short-lived signed proof for an admitted `DropShield.Session`, bound to the configured protected drop and rechecked against Phase 6 server-side admission state before forwarding. InMemory remains available for one-process local development; Redis mode coordinates admission across instances.
+The completed Phase 1–7 paths remain reproducible. Phase 8 adds one-time action proof for protected cart and checkout mutations. Action proof is separately scoped to the admitted session, configured drop, and server-selected action; it is atomically consumed before forwarding. InMemory remains available for one-process local development; Redis mode coordinates replay consumption across instances.
 
-Per-client rate limits remain the abuse boundary. Waiting clients receive JSON HTTP 202 rather than an exact queue position, while admitted clients receive an HttpOnly admission-proof cookie and can reach the synthetic origin. Cart replay protection, inventory reservation, bot classification, adaptive admission, Adobe Commerce integration, and edge-provider integration have not been implemented.
+Per-client rate limits remain the abuse boundary. Waiting clients receive JSON HTTP 202 rather than an exact queue position, while admitted clients receive an HttpOnly admission-proof cookie. Protected cart and checkout requests additionally require a short-lived `X-DropShield-Action` proof; replay, inventory reservation, bot classification, adaptive admission, Adobe Commerce integration, and edge-provider integration remain future work.
 
 ## Architecture direction
 
@@ -175,7 +175,7 @@ dotnet run --project src/DropShield.Api
 
 Redis unavailability is fail-closed: protected traffic receives HTTP 503 and is not forwarded or silently placed on a weaker local limiter. See [`docs/PHASE5_DISTRIBUTED_STATE.md`](docs/PHASE5_DISTRIBUTED_STATE.md) and [ADR-003](docs/adr/ADR-003-distributed-state-provider.md).
 
-## Phase 6 and 7 — Waiting room and signed proof
+## Phase 6–8 — Waiting room, admission, and action proof
 
 Admission is enabled for `pokemon-etb` in the committed PoC configuration. A protected-stock request first passes the per-client abuse limit. The first configured batch of sessions is admitted; eligible excess sessions receive:
 
@@ -187,7 +187,7 @@ Admission is enabled for `pokemon-etb` in the committed PoC configuration. A pro
 }
 ```
 
-The response is HTTP 202 with `Retry-After`. Poll the same protected-stock URL using the returned `DropShield.Session` cookie. No exact queue position is promised. An admitted response also sets a separate short-lived HttpOnly `DropShield.Admission` cookie carrying HMAC-SHA256 proof bound to that session and drop. Invalid proof never reaches DemoStore, but valid proof still requires active Phase 6 admission state; rate limits still apply. See [`docs/PHASE6_ADMISSION_CONTROL.md`](docs/PHASE6_ADMISSION_CONTROL.md), [`docs/PHASE7_SIGNED_ADMISSION.md`](docs/PHASE7_SIGNED_ADMISSION.md), [ADR-004](docs/adr/ADR-004-admission-control.md), and [ADR-005](docs/adr/ADR-005-signed-admission-tokens.md).
+The response is HTTP 202 with `Retry-After`. Poll the same protected-stock URL using the returned `DropShield.Session` cookie. No exact queue position is promised. An admitted response also sets a separate short-lived HttpOnly `DropShield.Admission` cookie carrying HMAC-SHA256 proof bound to that session and drop. A client with valid admission proof can obtain a cart or checkout action proof from `POST /api/action-proofs/cart` or `POST /api/action-proofs/checkout`, then attach it as `X-DropShield-Action` to the corresponding mutation. Each action proof is consumed exactly once before DemoStore forwarding. See [`docs/PHASE6_ADMISSION_CONTROL.md`](docs/PHASE6_ADMISSION_CONTROL.md), [`docs/PHASE7_SIGNED_ADMISSION.md`](docs/PHASE7_SIGNED_ADMISSION.md), and [`docs/PHASE8_REPLAY_PROTECTION.md`](docs/PHASE8_REPLAY_PROTECTION.md).
 
 ## Docker
 

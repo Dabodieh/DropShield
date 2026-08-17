@@ -1,4 +1,5 @@
 using DropShield.Api.Options;
+using DropShield.Api.Actions;
 using DropShield.Api.State;
 using Microsoft.Extensions.Options;
 
@@ -6,6 +7,56 @@ namespace DropShield.Tests;
 
 public sealed class RedisTrafficStateIntegrationTests
 {
+    [Fact]
+    [Trait("Category", "RedisIntegration")]
+    public async Task ReplayConsumption_IsAtomicAcrossInstancesAndKeyExpires()
+    {
+        var connectionString = Environment.GetEnvironmentVariable(
+            "DROPSHIELD_REDIS_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            return;
+        }
+
+        var options = Options.Create(new DropShieldOptions
+        {
+            StateProvider = TrafficStateProvider.Redis,
+            Redis = new RedisStateOptions
+            {
+                ConnectionString = connectionString,
+                Database = 0,
+                KeyPrefix = $"dropshield:test:{Guid.NewGuid():N}",
+                IdentityHashKey = "redis-integration-identity-key-001",
+                ConnectTimeoutMilliseconds = 1_000,
+                OperationTimeoutMilliseconds = 1_000,
+            },
+        });
+        await using var connectionA = new RedisConnectionProvider(options);
+        await using var connectionB = new RedisConnectionProvider(options);
+        var stateA = new RedisReplayState(connectionA, options);
+        var stateB = new RedisReplayState(connectionB, options);
+        const string replayKey = "derived-replay-key-for-test";
+        var expiry = TimeSpan.FromSeconds(2);
+        var redis = await connectionA.GetConnectionAsync(CancellationToken.None);
+        var database = redis.GetDatabase(options.Value.Redis.Database);
+        var key = $"{options.Value.Redis.KeyPrefix}:replay:{replayKey}";
+
+        var attempts = Enumerable.Range(0, 20)
+            .Select(index => (index % 2 == 0 ? stateA : stateB)
+                .TryConsumeAsync(replayKey, expiry, CancellationToken.None)
+                .AsTask());
+        var results = await Task.WhenAll(attempts);
+        var timeToLive = await database.KeyTimeToLiveAsync(key);
+
+        Assert.Equal(1, results.Count(result => result.IsConsumed));
+        Assert.Equal(19, results.Count(result => !result.IsConsumed));
+        Assert.NotNull(timeToLive);
+        Assert.InRange(timeToLive.Value, TimeSpan.Zero, TimeSpan.FromSeconds(2.1));
+
+        await Task.Delay(timeToLive.Value + TimeSpan.FromMilliseconds(250));
+        Assert.False(await database.KeyExistsAsync(key));
+    }
+
     [Fact]
     [Trait("Category", "RedisIntegration")]
     public async Task FixedWindow_IsAtomicAcrossInstancesAndKeyExpires()

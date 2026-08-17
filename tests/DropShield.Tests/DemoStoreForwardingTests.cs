@@ -17,6 +17,7 @@ public sealed class DemoStoreForwardingTests
         var source = new DefaultHttpContext();
         source.Request.Headers.Cookie =
             "DropShield.Session=private-session; DropShield.Admission=private-token";
+        source.Request.Headers["X-DropShield-Action"] = "private-action-token";
         var client = new DemoStoreClient(httpClient);
 
         using var response = await client.SendAsync(
@@ -27,11 +28,14 @@ public sealed class DemoStoreForwardingTests
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Null(handler.ForwardedCookie);
+        Assert.Null(handler.ForwardedActionToken);
     }
 
     private sealed class CapturingHandler : HttpMessageHandler
     {
         public string? ForwardedCookie { get; private set; }
+
+        public string? ForwardedActionToken { get; private set; }
 
         protected override Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request,
@@ -39,6 +43,9 @@ public sealed class DemoStoreForwardingTests
         {
             ForwardedCookie = request.Headers.TryGetValues("Cookie", out var values)
                 ? string.Join(";", values)
+                : null;
+            ForwardedActionToken = request.Headers.TryGetValues("X-DropShield-Action", out var actionValues)
+                ? string.Join(";", actionValues)
                 : null;
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK));
         }

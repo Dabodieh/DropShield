@@ -39,6 +39,7 @@ The response has this stable top-level shape:
   "rateLimitReasons": {},
   "admission": {},
   "admissionTokens": {},
+  "actionProofs": {},
   "statusCodes": {},
   "latencyMilliseconds": {},
   "recentRates": {},
@@ -50,6 +51,8 @@ The response has this stable top-level shape:
 Phase 6 adds fixed `admission` request-decision counters: `admitted`, `waiting`, and `queueFull`. These are per-instance operational observations, not distributed queue depth or unique-session counts. They contain no session identifiers or queue positions.
 
 Phase 7 adds fixed `admissionTokens` counters: `issued`, `validations`, `validationFailures`, and `expired`. They have no per-session, per-key, token-value, or validation-reason labels.
+
+Phase 8 adds fixed `actionProofs` counters for cart/checkout issuance and consumption, validation/failure totals, replay rejection, and replay-state unavailability. It contains no action ID, token, session, binding, or customer-data labels.
 
 `traffic`, `protectedStock`, and each route's `traffic` object expose:
 

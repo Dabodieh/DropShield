@@ -1,5 +1,6 @@
 using System.Threading.RateLimiting;
 using DropShield.Api.Admission;
+using DropShield.Api.Actions;
 using DropShield.Api.Options;
 using Microsoft.AspNetCore.RateLimiting;
 
@@ -31,7 +32,8 @@ public static class TrafficPolicy
                 options.ProtectedProducts);
             var reason = route switch
             {
-                TrafficRoute.Cart or TrafficRoute.Checkout => RateLimitReason.PerClient,
+                TrafficRoute.Cart or TrafficRoute.Checkout or TrafficRoute.ActionProof =>
+                    RateLimitReason.PerClient,
                 TrafficRoute.Stock when isProtectedStock =>
                     RateLimitReason.ProtectedStockChained,
                 _ => RateLimitReason.Unattributed,
@@ -82,7 +84,11 @@ public static class TrafficPolicy
         var clientIdentity = context.RequestServices
             .GetRequiredService<ClientIdentityProvider>()
             .GetPartitionKey(context);
-        var partitionKey = $"{route}:{clientIdentity}";
+        var partitionRoute = route == TrafficRoute.ActionProof &&
+                             ActionProofPolicy.TryGetAction(context.Request, out var action)
+            ? action == ActionKind.Cart ? TrafficRoute.Cart : TrafficRoute.Checkout
+            : route;
+        var partitionKey = $"{partitionRoute}:{clientIdentity}";
 
         return RateLimitPartition.GetFixedWindowLimiter(
             partitionKey,
@@ -124,6 +130,8 @@ public static class TrafficPolicy
                 options.Policies.Stock,
             TrafficRoute.Cart => options.Policies.Cart,
             TrafficRoute.Checkout => options.Policies.Checkout,
+            TrafficRoute.ActionProof when ActionProofPolicy.TryGetAction(request, out var action) =>
+                action == ActionKind.Cart ? options.Policies.Cart : options.Policies.Checkout,
             _ => null,
         };
 

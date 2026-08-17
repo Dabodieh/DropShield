@@ -1,4 +1,5 @@
 using DropShield.Api.Admission;
+using DropShield.Api.Actions;
 using DropShield.Api.Options;
 using DropShield.Api.Traffic;
 using Microsoft.Extensions.Options;
@@ -37,6 +38,13 @@ public sealed class RedisTrafficPolicyEvaluator(
                 context,
                 TrafficPolicyKind.Checkout,
                 _options.Policies.Checkout,
+                cancellationToken),
+            TrafficRoute.ActionProof when ActionProofPolicy.TryGetAction(
+                context.Request,
+                out var action) => await EvaluateClientPolicyAsync(
+                context,
+                action == ActionKind.Cart ? TrafficPolicyKind.Cart : TrafficPolicyKind.Checkout,
+                action == ActionKind.Cart ? _options.Policies.Cart : _options.Policies.Checkout,
                 cancellationToken),
             _ => RedisTrafficPolicyDecision.Allowed,
         };

@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using DropShield.Api.Admission;
+using DropShield.Api.Actions;
 
 namespace DropShield.Api.Traffic;
 
@@ -30,6 +31,14 @@ public sealed class TrafficMetrics
     private long _admissionTokenValidations;
     private long _admissionTokenValidationFailures;
     private long _admissionTokenExpired;
+    private long _cartActionTokensIssued;
+    private long _checkoutActionTokensIssued;
+    private long _actionTokenValidations;
+    private long _actionTokenValidationFailures;
+    private long _cartActionsConsumed;
+    private long _checkoutActionsConsumed;
+    private long _replayRejected;
+    private long _replayStateUnavailable;
 
     public TrafficMetrics(TimeProvider timeProvider)
     {
@@ -157,6 +166,43 @@ public sealed class TrafficMetrics
         }
     }
 
+    public void RecordActionTokenIssued(ActionKind action)
+    {
+        if (action == ActionKind.Cart)
+        {
+            Interlocked.Increment(ref _cartActionTokensIssued);
+        }
+        else
+        {
+            Interlocked.Increment(ref _checkoutActionTokensIssued);
+        }
+    }
+
+    public void RecordActionTokenValidation(ActionTokenValidationResult result)
+    {
+        Interlocked.Increment(ref _actionTokenValidations);
+        if (!result.IsValid)
+        {
+            Interlocked.Increment(ref _actionTokenValidationFailures);
+        }
+    }
+
+    public void RecordActionConsumed(ActionKind action)
+    {
+        if (action == ActionKind.Cart)
+        {
+            Interlocked.Increment(ref _cartActionsConsumed);
+        }
+        else
+        {
+            Interlocked.Increment(ref _checkoutActionsConsumed);
+        }
+    }
+
+    public void RecordReplayRejected() => Interlocked.Increment(ref _replayRejected);
+
+    public void RecordReplayStateUnavailable() => Interlocked.Increment(ref _replayStateUnavailable);
+
     public void RecordOriginLatency(TimeSpan duration) =>
         _originLatency.Record(duration);
 
@@ -206,6 +252,15 @@ public sealed class TrafficMetrics
                 Interlocked.Read(ref _admissionTokenValidations),
                 Interlocked.Read(ref _admissionTokenValidationFailures),
                 Interlocked.Read(ref _admissionTokenExpired)),
+            new ActionProofMetricsSnapshot(
+                Interlocked.Read(ref _cartActionTokensIssued),
+                Interlocked.Read(ref _checkoutActionTokensIssued),
+                Interlocked.Read(ref _actionTokenValidations),
+                Interlocked.Read(ref _actionTokenValidationFailures),
+                Interlocked.Read(ref _cartActionsConsumed),
+                Interlocked.Read(ref _checkoutActionsConsumed),
+                Interlocked.Read(ref _replayRejected),
+                Interlocked.Read(ref _replayStateUnavailable)),
             _totalStatusCodes.GetSnapshot(),
             new LatencyMetricsSnapshot(
                 _endToEndLatency.GetSnapshot(),
@@ -243,6 +298,14 @@ public sealed class TrafficMetrics
         Interlocked.Exchange(ref _admissionTokenValidations, 0);
         Interlocked.Exchange(ref _admissionTokenValidationFailures, 0);
         Interlocked.Exchange(ref _admissionTokenExpired, 0);
+        Interlocked.Exchange(ref _cartActionTokensIssued, 0);
+        Interlocked.Exchange(ref _checkoutActionTokensIssued, 0);
+        Interlocked.Exchange(ref _actionTokenValidations, 0);
+        Interlocked.Exchange(ref _actionTokenValidationFailures, 0);
+        Interlocked.Exchange(ref _cartActionsConsumed, 0);
+        Interlocked.Exchange(ref _checkoutActionsConsumed, 0);
+        Interlocked.Exchange(ref _replayRejected, 0);
+        Interlocked.Exchange(ref _replayStateUnavailable, 0);
         Interlocked.Exchange(
             ref _collectionStartedAtUtcTicks,
             _timeProvider.GetUtcNow().UtcTicks);
@@ -393,6 +456,7 @@ public sealed record TrafficMetricsSnapshot(
     RateLimitReasonSnapshot RateLimitReasons,
     AdmissionMetricsSnapshot Admission,
     AdmissionTokenMetricsSnapshot AdmissionTokens,
+    ActionProofMetricsSnapshot ActionProofs,
     StatusCodeSnapshot StatusCodes,
     LatencyMetricsSnapshot LatencyMilliseconds,
     RollingRateSnapshot RecentRates,
@@ -426,6 +490,16 @@ public sealed record AdmissionTokenMetricsSnapshot(
     long Validations,
     long ValidationFailures,
     long Expired);
+
+public sealed record ActionProofMetricsSnapshot(
+    long CartTokensIssued,
+    long CheckoutTokensIssued,
+    long Validations,
+    long ValidationFailures,
+    long CartActionsConsumed,
+    long CheckoutActionsConsumed,
+    long ReplayRejected,
+    long ReplayStateUnavailable);
 
 public sealed record StatusCodeSnapshot(
     long Success2xx,

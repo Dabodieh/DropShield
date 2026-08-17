@@ -1,5 +1,6 @@
 using DropShield.Api;
 using DropShield.Api.Admission;
+using DropShield.Api.Actions;
 using DropShield.Api.Origin;
 using DropShield.Api.State;
 using Microsoft.AspNetCore.Hosting;
@@ -15,7 +16,8 @@ internal sealed class DropShieldApiFactory(
     string environment = "Testing",
     IDistributedTrafficState? distributedState = null,
     IAdmissionState? admissionState = null,
-    TimeProvider? timeProvider = null)
+    TimeProvider? timeProvider = null,
+    IReplayState? replayState = null)
     : WebApplicationFactory<ApiAssemblyMarker>
 {
     private readonly IReadOnlyDictionary<string, string?> _overrides = overrides ??
@@ -52,6 +54,12 @@ internal sealed class DropShieldApiFactory(
                 services.RemoveAll<TimeProvider>();
                 services.AddSingleton(timeProvider);
             }
+
+            if (replayState is not null)
+            {
+                services.RemoveAll<IReplayState>();
+                services.AddSingleton(replayState);
+            }
         });
     }
 
@@ -78,6 +86,11 @@ internal sealed class DropShieldApiFactory(
         ["DropShield:AdmissionTokens:LifetimeSeconds"] = "60",
         ["DropShield:AdmissionTokens:KeyId"] = "primary",
         ["DropShield:AdmissionTokens:SigningKey"] = "",
+        ["DropShield:ActionProofs:Enabled"] = "false",
+        ["DropShield:ActionProofs:HeaderName"] = "X-DropShield-Action",
+        ["DropShield:ActionProofs:LifetimeSeconds"] = "30",
+        ["DropShield:ActionProofs:ReplayTtlMarginSeconds"] = "30",
+        ["DropShield:ActionProofs:MaximumInMemoryMarkers"] = "100000",
         ["DropShield:Policies:Stock:Enabled"] = "true",
         ["DropShield:Policies:Stock:ClientPermitLimit"] = "2",
         ["DropShield:Policies:Stock:ClientWindowSeconds"] = "60",

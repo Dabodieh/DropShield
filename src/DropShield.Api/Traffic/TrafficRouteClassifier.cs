@@ -38,6 +38,12 @@ public static class TrafficRouteClassifier
             return TrafficRoute.Checkout;
         }
 
+        if (HttpMethods.IsPost(request.Method) &&
+            Actions.ActionProofPolicy.TryGetAction(request, out _))
+        {
+            return TrafficRoute.ActionProof;
+        }
+
         return TrafficRoute.Unknown;
     }
 
@@ -58,6 +64,7 @@ public static class TrafficRouteClassifier
         TrafficRoute.Stock => "stock",
         TrafficRoute.Cart => "cart",
         TrafficRoute.Checkout => "checkout",
+        TrafficRoute.ActionProof => "actionProof",
         _ => "unknown",
     };
 
@@ -68,6 +75,7 @@ public static class TrafficRouteClassifier
         TrafficRoute.Stock => "GET /api/products/{productId}/stock",
         TrafficRoute.Cart => "POST /api/cart",
         TrafficRoute.Checkout => "POST /api/checkout",
+        TrafficRoute.ActionProof => "POST /api/action-proofs/{action}",
         _ => "unknown",
     };
 

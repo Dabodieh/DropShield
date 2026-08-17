@@ -50,7 +50,7 @@ public sealed class TrafficMetricsTests
         Assert.Equal(updateCount, snapshot.LatencyMilliseconds.EndToEnd.Count);
         Assert.Equal(updateCount / 2, snapshot.LatencyMilliseconds.Origin.Count);
         Assert.Equal(updateCount / 2, snapshot.RateLimitReasons.ProtectedStockChained);
-        Assert.Equal(5, snapshot.Routes.Count);
+        Assert.Equal(6, snapshot.Routes.Count);
     }
 
     [Fact]

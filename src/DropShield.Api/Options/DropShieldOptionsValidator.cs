@@ -82,6 +82,7 @@ public sealed partial class DropShieldOptionsValidator(IHostEnvironment environm
 
         ValidateAdmission(options, failures);
         ValidateAdmissionTokens(options, isControlledEnvironment, failures);
+        ValidateActionProofs(options, failures);
 
         return failures.Count == 0
             ? ValidateOptionsResult.Success
@@ -203,6 +204,47 @@ public sealed partial class DropShieldOptionsValidator(IHostEnvironment environm
         {
             failures.Add(
                 "DropShield:AdmissionTokens:SigningKey must be Base64-encoded and contain at least 32 random bytes.");
+        }
+    }
+
+    private static void ValidateActionProofs(
+        DropShieldOptions options,
+        ICollection<string> failures)
+    {
+        var proofs = options.ActionProofs;
+        if (!proofs.Enabled)
+        {
+            return;
+        }
+
+        if (!options.Admission.Enabled || !options.AdmissionTokens.Enabled)
+        {
+            failures.Add("DropShield:ActionProofs requires enabled admission and admission tokens.");
+        }
+
+        if (!HeaderNamePattern().IsMatch(proofs.HeaderName))
+        {
+            failures.Add("DropShield:ActionProofs:HeaderName is invalid.");
+        }
+
+        if (proofs.LifetimeSeconds is < 1 or > 300 ||
+            (options.AdmissionTokens.Enabled &&
+             proofs.LifetimeSeconds > options.AdmissionTokens.LifetimeSeconds))
+        {
+            failures.Add(
+                "DropShield:ActionProofs:LifetimeSeconds must be between 1 and 300 and no longer than the admission token lifetime.");
+        }
+
+        if (proofs.ReplayTtlMarginSeconds is < 0 or > 300)
+        {
+            failures.Add(
+                "DropShield:ActionProofs:ReplayTtlMarginSeconds must be between 0 and 300.");
+        }
+
+        if (proofs.MaximumInMemoryMarkers is < 1 or > 1_000_000)
+        {
+            failures.Add(
+                "DropShield:ActionProofs:MaximumInMemoryMarkers must be between 1 and 1000000.");
         }
     }
 

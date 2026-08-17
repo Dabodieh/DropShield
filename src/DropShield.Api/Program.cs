@@ -1,4 +1,5 @@
 using DropShield.Api.Admission;
+using DropShield.Api.Actions;
 using DropShield.Api.Models;
 using DropShield.Api.Options;
 using DropShield.Api.Origin;
@@ -24,6 +25,15 @@ builder.Services.AddSingleton<AdmissionSessionProvider>();
 builder.Services.AddSingleton<AdmissionSigningKeyProvider>();
 builder.Services.AddSingleton<IAdmissionTokenService, AdmissionTokenService>();
 builder.Services.AddSingleton<AdmissionTokenCookieManager>();
+builder.Services.AddSingleton<IActionTokenService, ActionTokenService>();
+builder.Services.AddSingleton<InMemoryReplayState>();
+builder.Services.AddSingleton<RedisReplayState>();
+builder.Services.AddSingleton<IReplayState>(services =>
+    services.GetRequiredService<IOptions<DropShieldOptions>>().Value.StateProvider ==
+    TrafficStateProvider.Redis
+        ? services.GetRequiredService<RedisReplayState>()
+        : services.GetRequiredService<InMemoryReplayState>());
+builder.Services.AddSingleton<AdmissionProofAuthorizer>();
 builder.Services.AddSingleton<InMemoryAdmissionState>();
 builder.Services.AddSingleton<RedisAdmissionKeyBuilder>();
 builder.Services.AddSingleton<RedisAdmissionState>();
@@ -63,6 +73,7 @@ else
 }
 app.UseMiddleware<AdmissionTokenMiddleware>();
 app.UseMiddleware<AdmissionControlMiddleware>();
+app.UseMiddleware<ActionProofMiddleware>();
 
 app.MapGet(
     "/health",
@@ -118,6 +129,18 @@ app.MapPost(
     (HttpContext context, DemoStoreForwarder forwarder, CancellationToken cancellationToken) =>
         forwarder.ForwardAsync(context, TrafficRoute.Checkout, cancellationToken));
 
+app.MapPost(
+    "/api/action-proofs/cart",
+    (HttpContext context, AdmissionProofAuthorizer authorizer, IActionTokenService tokenService,
+        TrafficMetrics metrics, IOptions<DropShieldOptions> options) =>
+        IssueActionProof(context, ActionKind.Cart, authorizer, tokenService, metrics, options.Value));
+
+app.MapPost(
+    "/api/action-proofs/checkout",
+    (HttpContext context, AdmissionProofAuthorizer authorizer, IActionTokenService tokenService,
+        TrafficMetrics metrics, IOptions<DropShieldOptions> options) =>
+        IssueActionProof(context, ActionKind.Checkout, authorizer, tokenService, metrics, options.Value));
+
 app.MapGet(
     "/internal/metrics",
     (TrafficMetrics metrics, IOptions<DropShieldOptions> options, IHostEnvironment environment) =>
@@ -150,3 +173,37 @@ static bool InternalMetricsAreAvailable(
     IHostEnvironment environment) =>
     options.InternalMetrics.Enabled &&
     (environment.IsDevelopment() || environment.IsEnvironment("Testing"));
+
+static IResult IssueActionProof(
+    HttpContext context,
+    ActionKind action,
+    AdmissionProofAuthorizer authorizer,
+    IActionTokenService tokenService,
+    TrafficMetrics metrics,
+    DropShieldOptions options)
+{
+    if (!options.ActionProofs.Enabled)
+    {
+        return Results.NotFound();
+    }
+
+    var admission = authorizer.Authorize(context);
+    if (!admission.IsAuthorized)
+    {
+        return Results.Json(
+            new GatewayErrorResponse(
+                "admission_required",
+                "Admission is required for this protected drop."),
+            statusCode: StatusCodes.Status403Forbidden);
+    }
+
+    var token = tokenService.Issue(
+        options.Admission.ProtectedProduct,
+        admission.SessionId!,
+        action);
+    metrics.RecordActionTokenIssued(action);
+    return Results.Ok(new ActionProofResponse(
+        action.ToString().ToLowerInvariant(),
+        token,
+        options.ActionProofs.LifetimeSeconds));
+}

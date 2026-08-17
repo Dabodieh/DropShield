@@ -24,6 +24,8 @@ public sealed class DropShieldOptions
 
     public AdmissionTokenOptions AdmissionTokens { get; set; } = new();
 
+    public ActionProofOptions ActionProofs { get; set; } = new();
+
     public TrafficPoliciesOptions Policies { get; set; } = new();
 }
 
@@ -90,6 +92,19 @@ public sealed class AdmissionTokenOptions
     public string KeyId { get; set; } = "primary";
 
     public string SigningKey { get; set; } = string.Empty;
+}
+
+public sealed class ActionProofOptions
+{
+    public bool Enabled { get; set; }
+
+    public string HeaderName { get; set; } = "X-DropShield-Action";
+
+    public int LifetimeSeconds { get; set; } = 30;
+
+    public int ReplayTtlMarginSeconds { get; set; } = 30;
+
+    public int MaximumInMemoryMarkers { get; set; } = 100_000;
 }
 
 public sealed class TrafficPoliciesOptions

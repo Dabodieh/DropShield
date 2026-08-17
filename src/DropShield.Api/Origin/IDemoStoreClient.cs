@@ -6,5 +6,6 @@ public interface IDemoStoreClient
         HttpMethod method,
         string path,
         HttpRequest sourceRequest,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken,
+        (string HeaderName, string Value)? originAssertionHeader = null);
 }

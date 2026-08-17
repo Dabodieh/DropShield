@@ -15,6 +15,8 @@ public sealed class TrafficMetricsMiddleware(RequestDelegate next)
         IOptions<DropShieldOptions> options,
         ILogger<TrafficMetricsMiddleware> logger)
     {
+        context.Request.Headers.Remove(options.Value.OriginAssertions.HeaderName);
+
         var route = TrafficRouteClassifier.Classify(context.Request);
         if (route == TrafficRoute.Unknown)
         {

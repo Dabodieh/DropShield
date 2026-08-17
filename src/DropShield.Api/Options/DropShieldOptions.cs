@@ -30,6 +30,8 @@ public sealed class DropShieldOptions
 
     public BehaviourScoringOptions BehaviourScoring { get; set; } = new();
 
+    public OriginAssertionOptions OriginAssertions { get; set; } = new();
+
     public TrafficPoliciesOptions Policies { get; set; } = new();
 }
 
@@ -135,6 +137,19 @@ public sealed class BehaviourScoringOptions
     public int MaximumEventsPerActor { get; set; } = 128;
 
     public int RestrictionRetryAfterSeconds { get; set; } = 5;
+}
+
+public sealed class OriginAssertionOptions
+{
+    public bool Enabled { get; set; }
+
+    public string HeaderName { get; set; } = "X-DropShield-Origin-Assertion";
+
+    public int LifetimeSeconds { get; set; } = 20;
+
+    public string KeyId { get; set; } = "primary";
+
+    public string SigningKey { get; set; } = string.Empty;
 }
 
 public sealed class TrafficPoliciesOptions

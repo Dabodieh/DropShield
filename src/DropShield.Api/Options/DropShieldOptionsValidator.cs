@@ -85,6 +85,7 @@ public sealed partial class DropShieldOptionsValidator(IHostEnvironment environm
         ValidateActionProofs(options, failures);
         ValidateInventoryReservation(options, failures);
         ValidateBehaviourScoring(options, failures);
+        ValidateOriginAssertions(options, isControlledEnvironment, failures);
 
         return failures.Count == 0
             ? ValidateOptionsResult.Success
@@ -304,6 +305,70 @@ public sealed partial class DropShieldOptionsValidator(IHostEnvironment environm
         {
             failures.Add("DropShield behavioural scoring settings are outside supported bounds.");
         }
+    }
+
+    private static void ValidateOriginAssertions(
+        DropShieldOptions options,
+        bool isControlledEnvironment,
+        ICollection<string> failures)
+    {
+        var assertions = options.OriginAssertions;
+        if (!assertions.Enabled)
+        {
+            return;
+        }
+
+        if (!HeaderNamePattern().IsMatch(assertions.HeaderName))
+        {
+            failures.Add("DropShield:OriginAssertions:HeaderName is invalid.");
+        }
+
+        if (assertions.LifetimeSeconds is < 1 or > 30)
+        {
+            failures.Add("DropShield:OriginAssertions:LifetimeSeconds must be between 1 and 30.");
+        }
+
+        if (!KeyIdPattern().IsMatch(assertions.KeyId))
+        {
+            failures.Add("DropShield:OriginAssertions:KeyId is invalid.");
+        }
+
+        if (string.IsNullOrWhiteSpace(assertions.SigningKey))
+        {
+            if (!isControlledEnvironment)
+            {
+                failures.Add(
+                    "DropShield:OriginAssertions:SigningKey is required in Production or other non-controlled environments.");
+            }
+
+            return;
+        }
+
+        byte[] key;
+        try
+        {
+            key = Convert.FromBase64String(assertions.SigningKey);
+        }
+        catch (FormatException)
+        {
+            failures.Add(
+                "DropShield:OriginAssertions:SigningKey must be Base64-encoded and contain at least 32 random bytes.");
+            return;
+        }
+
+        if (key.Length < 32)
+        {
+            failures.Add(
+                "DropShield:OriginAssertions:SigningKey must be Base64-encoded and contain at least 32 random bytes.");
+        }
+
+        if (string.Equals(assertions.SigningKey, options.AdmissionTokens.SigningKey, StringComparison.Ordinal))
+        {
+            failures.Add(
+                "DropShield:OriginAssertions:SigningKey must not reuse the admission token signing key.");
+        }
+
+        CryptographicOperations.ZeroMemory(key);
     }
 
     private static void ValidateRedis(

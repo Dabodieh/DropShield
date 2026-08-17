@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Config:etc/config.xsd">
+    <default>
+        <dropshield_connector>
+            <general>
+                <enabled>0</enabled>
+            </general>
+            <origin_assertion>
+                <header_name>X-DropShield-Origin-Assertion</header_name>
+                <clock_tolerance_seconds>5</clock_tolerance_seconds>
+            </origin_assertion>
+        </dropshield_connector>
+    </default>
+</config>

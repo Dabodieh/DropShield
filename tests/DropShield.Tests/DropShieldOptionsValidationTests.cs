@@ -237,6 +237,48 @@ public sealed class DropShieldOptionsValidationTests
         Assert.Contains(result.Failures, failure => failure.Contains("ActionProofs:LifetimeSeconds", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public void OriginAssertions_RequireExplicitKeyOutsideControlledEnvironment()
+    {
+        var options = ValidOptions();
+        options.OriginAssertions = new OriginAssertionOptions
+        {
+            Enabled = true,
+            SigningKey = string.Empty,
+        };
+
+        var result = new DropShieldOptionsValidator(new TestHostEnvironment("Production"))
+            .Validate(null, options);
+
+        Assert.True(result.Failed);
+        Assert.Contains(result.Failures, failure => failure.Contains("OriginAssertions:SigningKey", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void OriginAssertions_MustNotReuseAdmissionTokenSigningKey()
+    {
+        const string sharedKey = "AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA=";
+        var options = ValidOptions();
+        options.AdmissionTokens = new AdmissionTokenOptions
+        {
+            Enabled = true,
+            SigningKey = sharedKey,
+        };
+        options.OriginAssertions = new OriginAssertionOptions
+        {
+            Enabled = true,
+            SigningKey = sharedKey,
+        };
+
+        var result = new DropShieldOptionsValidator(new TestHostEnvironment("Testing"))
+            .Validate(null, options);
+
+        Assert.True(result.Failed);
+        Assert.Contains(
+            result.Failures,
+            failure => failure.Contains("must not reuse the admission token signing key", StringComparison.Ordinal));
+    }
+
     private static DropShieldOptions ValidOptions() => new()
     {
         OriginBaseUrl = "http://localhost:5058",

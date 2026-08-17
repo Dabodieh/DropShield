@@ -1,0 +1,41 @@
+<?xml version="1.0"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Config:etc/system_file.xsd">
+    <system>
+        <section id="dropshield_connector" translate="label" type="text" sortOrder="500" showInDefault="1" showInWebsite="1" showInStore="1">
+            <label>DropShield Connector</label>
+            <tab>service</tab>
+            <resource>DropShield_Connector::config</resource>
+            <group id="general" translate="label" type="text" sortOrder="10" showInDefault="1" showInWebsite="1" showInStore="1">
+                <label>General</label>
+                <field id="enabled" translate="label" type="select" sortOrder="10" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Enabled</label>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                </field>
+                <field id="protected_skus" translate="label comment" type="textarea" sortOrder="20" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Protected SKUs</label>
+                    <comment>Comma-separated list of SKUs that require a valid DropShield origin assertion. Ordinary SKUs are unaffected.</comment>
+                </field>
+            </group>
+            <group id="origin_assertion" translate="label" type="text" sortOrder="20" showInDefault="1" showInWebsite="1" showInStore="1">
+                <label>Origin Assertion</label>
+                <field id="header_name" translate="label" type="text" sortOrder="10" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Internal Header Name</label>
+                </field>
+                <field id="key_id" translate="label" type="text" sortOrder="20" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Signing Key ID</label>
+                    <comment>Must match the active DropShield.Api OriginAssertions key ID.</comment>
+                </field>
+                <field id="signing_key" translate="label comment" type="obscure" sortOrder="30" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Shared Secret (Base64)</label>
+                    <comment>Base64-encoded shared secret from DropShield.Api OriginAssertions:SigningKey. Never share this with the admission or action proof keys. Store via environment-scoped configuration, not in exported config.</comment>
+                    <backend_model>Magento\Config\Model\Config\Backend\Encrypted</backend_model>
+                </field>
+                <field id="clock_tolerance_seconds" translate="label comment" type="text" sortOrder="40" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Clock Tolerance (seconds)</label>
+                    <comment>Allowance for clock drift when checking assertion expiry.</comment>
+                    <validate>validate-number validate-greater-than-zero</validate>
+                </field>
+            </group>
+        </section>
+    </system>
+</config>

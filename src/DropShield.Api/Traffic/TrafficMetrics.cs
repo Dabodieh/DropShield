@@ -59,6 +59,9 @@ public sealed class TrafficMetrics
     private long _behaviourHighScores;
     private long _behaviourRestrictions;
     private long _behaviourStateFailures;
+    private long _originAssertionsIssued;
+    private long _originAssertionFailures;
+    private long _commerceProtectedRequests;
 
     public TrafficMetrics(TimeProvider timeProvider)
     {
@@ -296,6 +299,12 @@ public sealed class TrafficMetrics
 
     public void RecordBehaviourStateFailure() => Interlocked.Increment(ref _behaviourStateFailures);
 
+    public void RecordOriginAssertionIssued() => Interlocked.Increment(ref _originAssertionsIssued);
+
+    public void RecordOriginAssertionFailure() => Interlocked.Increment(ref _originAssertionFailures);
+
+    public void RecordCommerceProtectedRequest() => Interlocked.Increment(ref _commerceProtectedRequests);
+
     public void RecordOriginLatency(TimeSpan duration) =>
         _originLatency.Record(duration);
 
@@ -374,6 +383,10 @@ public sealed class TrafficMetrics
                 Interlocked.Read(ref _behaviourHighScores),
                 Interlocked.Read(ref _behaviourRestrictions),
                 Interlocked.Read(ref _behaviourStateFailures)),
+            new OriginAssertionMetricsSnapshot(
+                Interlocked.Read(ref _originAssertionsIssued),
+                Interlocked.Read(ref _originAssertionFailures),
+                Interlocked.Read(ref _commerceProtectedRequests)),
             _totalStatusCodes.GetSnapshot(),
             new LatencyMetricsSnapshot(
                 _endToEndLatency.GetSnapshot(),
@@ -437,6 +450,9 @@ public sealed class TrafficMetrics
         Interlocked.Exchange(ref _behaviourHighScores, 0);
         Interlocked.Exchange(ref _behaviourRestrictions, 0);
         Interlocked.Exchange(ref _behaviourStateFailures, 0);
+        Interlocked.Exchange(ref _originAssertionsIssued, 0);
+        Interlocked.Exchange(ref _originAssertionFailures, 0);
+        Interlocked.Exchange(ref _commerceProtectedRequests, 0);
         Interlocked.Exchange(
             ref _collectionStartedAtUtcTicks,
             _timeProvider.GetUtcNow().UtcTicks);
@@ -590,6 +606,7 @@ public sealed record TrafficMetricsSnapshot(
     ActionProofMetricsSnapshot ActionProofs,
     InventoryReservationMetricsSnapshot InventoryReservations,
     BehaviourMetricsSnapshot Behaviour,
+    OriginAssertionMetricsSnapshot OriginAssertions,
     StatusCodeSnapshot StatusCodes,
     LatencyMetricsSnapshot LatencyMilliseconds,
     RollingRateSnapshot RecentRates,
@@ -655,6 +672,11 @@ public sealed record BehaviourMetricsSnapshot(
     long HighScores,
     long Restrictions,
     long StateFailures);
+
+public sealed record OriginAssertionMetricsSnapshot(
+    long Issued,
+    long Failures,
+    long CommerceProtectedRequests);
 
 public sealed record StatusCodeSnapshot(
     long Success2xx,

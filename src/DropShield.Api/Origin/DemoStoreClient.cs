@@ -6,7 +6,8 @@ public sealed class DemoStoreClient(HttpClient httpClient) : IDemoStoreClient
         HttpMethod method,
         string path,
         HttpRequest sourceRequest,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        (string HeaderName, string Value)? originAssertionHeader = null)
     {
         using var request = new HttpRequestMessage(method, path);
 
@@ -19,6 +20,11 @@ public sealed class DemoStoreClient(HttpClient httpClient) : IDemoStoreClient
                     "Content-Type",
                     sourceRequest.ContentType);
             }
+        }
+
+        if (originAssertionHeader is { } header)
+        {
+            request.Headers.TryAddWithoutValidation(header.HeaderName, header.Value);
         }
 
         return await httpClient.SendAsync(

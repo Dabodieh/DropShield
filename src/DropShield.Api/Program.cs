@@ -60,6 +60,8 @@ builder.Services.AddSingleton<IAdmissionState>(services =>
         ? services.GetRequiredService<RedisAdmissionState>()
         : services.GetRequiredService<InMemoryAdmissionState>());
 builder.Services.AddSingleton<AdmissionEvaluator>();
+builder.Services.AddSingleton<OriginAssertionSigningKeyProvider>();
+builder.Services.AddSingleton<IOriginAssertionService, OriginAssertionService>();
 builder.Services.AddTransient<DemoStoreForwarder>();
 builder.Services.AddHttpClient<IDemoStoreClient, DemoStoreClient>((services, client) =>
 {

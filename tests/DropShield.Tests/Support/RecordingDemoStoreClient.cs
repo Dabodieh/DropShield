@@ -14,6 +14,8 @@ internal sealed class RecordingDemoStoreClient : IDemoStoreClient
 
     public int TotalRequests => _requestCounts.Values.Sum();
 
+    public (string HeaderName, string Value)? LastOriginAssertionHeader { get; private set; }
+
     public int GetRequestCount(string path) =>
         _requestCounts.GetValueOrDefault(path);
 
@@ -21,8 +23,10 @@ internal sealed class RecordingDemoStoreClient : IDemoStoreClient
         HttpMethod method,
         string path,
         HttpRequest sourceRequest,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        (string HeaderName, string Value)? originAssertionHeader = null)
     {
+        LastOriginAssertionHeader = originAssertionHeader;
         if (ThrowOnSend)
         {
             throw new HttpRequestException("Synthetic origin failure.");

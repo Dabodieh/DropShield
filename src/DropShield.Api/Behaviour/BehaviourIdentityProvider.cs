@@ -2,12 +2,13 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using DropShield.Api.Admission;
+using DropShield.Api.Security;
 using DropShield.Api.Traffic;
 
 namespace DropShield.Api.Behaviour;
 
 public sealed partial class BehaviourIdentityProvider(
-    AdmissionSigningKeyProvider signingKeys,
+    InternalHashingKeyProvider hashingKeys,
     ClientIdentityProvider clientIdentityProvider)
 {
     public string GetActor(HttpContext context)
@@ -19,7 +20,7 @@ public sealed partial class BehaviourIdentityProvider(
             : $"client:{clientIdentityProvider.GetPartitionKey(context)}";
 
         return Convert.ToHexString(HMACSHA256.HashData(
-            signingKeys.GetActiveKey().Material,
+            hashingKeys.Material,
             Encoding.UTF8.GetBytes($"DropShield.Behaviour.Actor.v1:{source}"))).ToLowerInvariant();
     }
 

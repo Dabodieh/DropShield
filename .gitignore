@@ -29,3 +29,6 @@ appsettings.Local.json
 .DS_Store
 Thumbs.db
 
+# Local scratch output
+/tmp/
+

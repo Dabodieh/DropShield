@@ -40,18 +40,23 @@ class CartManagementPlugin
             $skus[] = (string) $item->getSku();
         }
 
-        $protectedSku = null;
+        $hasProtectedSku = false;
         foreach ($skus as $sku) {
             if ($this->dropResolver->isProtected($sku)) {
-                $protectedSku = $sku;
+                $hasProtectedSku = true;
                 break;
             }
         }
 
-        if ($protectedSku === null) {
+        if (!$hasProtectedSku) {
             return;
         }
 
-        $this->guard->requireValidAssertion($this->request, $protectedSku, self::ACTION, self::ROUTE);
+        $this->guard->requireValidAssertion(
+            $this->request,
+            $this->dropResolver->getDropId(),
+            self::ACTION,
+            self::ROUTE
+        );
     }
 }

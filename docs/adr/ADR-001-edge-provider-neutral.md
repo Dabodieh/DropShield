@@ -91,5 +91,5 @@ No code migration is required. Phase 1 contains no provider integration. Future 
 
 - [ADR-002: Adobe Commerce as the first planned ecommerce target](ADR-002-adobe-commerce-target.md)
 - [DropShield architecture direction](../ARCHITECTURE.md)
-- [Hamleys platform research](../HAMLEYS_PLATFORM_RESEARCH.md)
+- [Hamleys platform research](../hamleys-platform-research.md)
 

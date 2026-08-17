@@ -1,51 +1,70 @@
 # DropShield
 
-DropShield is a defensive proof-of-concept intended to demonstrate techniques for keeping ecommerce platforms responsive during high-demand product launches and excessive automated traffic. Its long-term direction is an edge-first, ecommerce-aware protection architecture that can integrate with Adobe Commerce and a retailer's existing edge/CDN infrastructure without coupling the core to one edge provider.
+DropShield is a proof-of-concept traffic and scarce-stock protection layer for high-demand
+ecommerce releases. It sits in front of an ecommerce origin and applies rate controls,
+waiting-room admission, replay protection, and short-lived synthetic stock reservations before
+protected requests are forwarded.
 
-## Important safety boundary
+## Safety boundary
 
-All automated traffic generation, load testing, endpoint experimentation, and abuse simulation must target only:
+All automated traffic generation, load testing, endpoint experimentation, and abuse simulation
+must target only localhost, the synthetic `DropShield.DemoStore`, infrastructure owned by the
+project operator, or systems with explicit testing permission. This project must not be used
+to send abusive traffic to third-party websites. Any retailer referenced in the documentation
+(for architectural research purposes) is a conceptual use case only and is not affiliated with
+DropShield, and no traffic has been sent to it.
 
-- localhost;
-- the synthetic `DropShield.DemoStore`;
-- infrastructure owned by the project operator; or
-- systems for which explicit testing permission has been granted.
+## What's implemented
 
-This project must not be used to send abusive traffic to third-party websites. Public architectural research does not constitute authorisation to security-test Hamleys. Do not add Hamleys production URLs to load tests, integration tests, API fuzzers, scrapers, bot simulations, or automated endpoint discovery. Hamleys and any other retailer are conceptual use cases only and are not affiliated with DropShield.
+Rate limiting applies per-client and aggregate fixed-window limits, InMemory or Redis-backed.
+Waiting-room admission holds eligible sessions in a bounded active/waiting capacity separate
+from raw rate limiting, and issues signed HMAC-SHA256 admission proof once a session is let
+in. Cart and checkout mutations require a one-time action proof so a captured request can't be
+replayed, and a synthetic scarce-stock ledger reserves and commits inventory atomically.
+Behavioural scoring adds a short-lived, explainable risk signal that can temporarily restrict
+high-risk sessions. The Adobe Commerce connector is a companion Magento 2 module that verifies
+a signed origin assertion before allowing cart/checkout writes through, so Commerce can't be
+reached by skipping DropShield. An internal, bounded, aggregate-only metrics snapshot supports
+local development.
 
-## Current phase
+None of this is presented as production-ready. It is a working demonstration of the protection
+model, backed by measured local benchmarks — see [benchmarks](docs/benchmarks.md).
 
-**Phase 10 — Behavioural Bot Scoring**
+## Architecture
 
-The completed Phase 1–9 paths remain reproducible. Phase 10 adds a short-lived, explainable behavioural score for the protected drop. Fixed recent-activity signals produce a bounded 0–100 score; only the highest risk band temporarily restricts transaction endpoints. It is a conservative demonstration policy, not an AI bot detector or long-term reputation system.
+```text
+local client → DropShield.Api → per-client rate policy → admission + proof → action consume → reserve/commit → DropShield.DemoStore
+                    │                  │                                                           │
+                    │                  └─ abuse 429                                                 └─ admitted, waiting 202, or safe proof/replay/reservation rejection
+                    └─ InMemory or shared Redis state + per-instance metrics
+```
 
-Per-client rate limits remain the abuse boundary. Waiting clients receive JSON HTTP 202 rather than an exact queue position, while admitted clients receive an HttpOnly admission-proof cookie. Protected cart and checkout requests additionally require a short-lived `X-DropShield-Action` proof. The reservation ledger is synthetic only: real inventory allocation must remain coordinated with Adobe Commerce and retailer inventory/ERP systems. Adaptive admission, Adobe Commerce integration, and edge-provider integration remain future work.
+Deeper documentation:
 
-## Architecture direction
-
-DropShield is not a Cloudflare-native system for Hamleys. The core is edge-provider-neutral, with future provider-specific capabilities isolated behind adapters. Adobe Commerce / Magento 2 is the first planned real ecommerce integration because public evidence establishes it as the relevant platform for the Hamleys use case.
-
-For Hamleys-specific discussion, use this evidence boundary:
-
-> **Adobe Commerce Edge / CDN**  
-> Likely Fastly where standard Adobe Commerce Cloud architecture applies.  
-> Exact Hamleys production configuration: unconfirmed.
-
-Cloudflare is not confirmed as Hamleys' authoritative edge provider. Hamleys' exact Fastly routing and Adobe Advanced Security licensing or enablement are also unknown.
-
-See:
-
-- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — future edge/application separation and design principles.
-- [`docs/HAMLEYS_PLATFORM_RESEARCH.md`](docs/HAMLEYS_PLATFORM_RESEARCH.md) — evidence classifications, confidence levels, sources, and known unknowns.
-- [`docs/adr/ADR-001-edge-provider-neutral.md`](docs/adr/ADR-001-edge-provider-neutral.md) — provider-neutral core decision.
-- [`docs/adr/ADR-002-adobe-commerce-target.md`](docs/adr/ADR-002-adobe-commerce-target.md) — Adobe Commerce target decision.
+- [Architecture](docs/ARCHITECTURE.md) — overall design and future edge-integration direction.
+- [Traffic control](docs/traffic-control.md) — rate limiting, distributed state, waiting-room
+  admission, signed admission proof.
+- [Transaction protection](docs/transaction-protection.md) — one-time action proof and
+  inventory reservation.
+- [Behavioural scoring](docs/behavioural-scoring.md).
+- [Observability](docs/observability.md) — the internal metrics endpoint.
+- [Adobe Commerce](docs/adobe-commerce.md) — the origin-assertion contract and the Magento
+  connector.
+- [Benchmarks](docs/benchmarks.md) — measured unprotected vs. protected throughput/latency.
+- [Roadmap](docs/ROADMAP.md).
 
 ## Projects
 
-- `src/DropShield.Api` — protected local entry point with explicit forwarding, selectable InMemory/Redis policy and admission state, and per-instance observability.
-- `src/DropShield.DemoStore` — synthetic ecommerce backend with health, product, stock, cart, and checkout endpoints.
+- `src/DropShield.Api` — the protection gateway: explicit route forwarding, selectable
+  InMemory/Redis state, and per-instance observability.
+- `src/DropShield.DemoStore` — a synthetic ecommerce backend (health, product, stock, cart,
+  checkout) used as the protected origin for local development and benchmarking.
 - `tests/DropShield.Tests` — xUnit integration tests for both APIs.
-- `load-tests` — localhost-only k6 smoke, customer, flash-crowd, aggressive-polling, and mixed-drop scenarios.
+- `load-tests` — localhost-only k6 scenarios (smoke, normal customer, flash crowd, aggressive
+  polling, mixed drop).
+- `integrations/adobe-commerce/DropShield_Connector` — the Magento 2 connector.
+- `contracts/origin-assertion-v1.json` — the language-neutral origin-assertion wire format and
+  a cross-language test vector.
 
 ## Run locally
 
@@ -71,9 +90,10 @@ Default local URLs:
 - Demo Store: `http://localhost:5058/health`
 - Demo Store stock: `http://localhost:5058/api/products/pokemon-etb/stock`
 
-The demo store's intentional inventory lookup delay is configured in `src/DropShield.DemoStore/appsettings.json`.
-
-Development InMemory mode generates a non-persistent admission signing key when none is configured; tokens invalidate on restart. Production and Redis mode require a shared Base64 key before startup:
+Development mode generates ephemeral, non-persistent signing keys for admission tokens, action
+proofs, and origin assertions when none are configured; tokens invalidate on restart. Production
+and Redis-mode deployments require explicit shared Base64 keys before startup — DropShield fails
+closed rather than falling back to a weaker default:
 
 ```powershell
 $env:DropShield__AdmissionTokens__KeyId = '2026-08-primary'
@@ -81,117 +101,49 @@ $env:DropShield__AdmissionTokens__SigningKey = [Convert]::ToBase64String(
     [Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
 ```
 
-## Phase 2 — Baseline Load Testing
+Admission tokens, action proofs, and origin assertions each use a dedicated signing key —
+startup validation rejects any configuration that reuses one key across those purposes.
 
-Start the DemoStore in one PowerShell terminal:
+### Exercise the protected drop
 
-```powershell
-$env:Logging__LogLevel__Default = 'Warning'
-dotnet run --project src/DropShield.DemoStore --configuration Release --no-launch-profile --urls http://localhost:5058
+Admission is enabled for `pokemon-etb` in the committed configuration. A protected-stock
+request first passes the per-client rate limit, then admission. An eligible excess session gets:
+
+```json
+{ "status": "waiting", "drop": "pokemon-etb", "retryAfterSeconds": 5 }
 ```
 
-In another terminal at the repository root, set the Docker bind mount and run any scenario:
+as HTTP 202 — poll the same URL with the returned `DropShield.Session` cookie. An admitted
+response also sets an HttpOnly `DropShield.Admission` proof cookie. With valid admission proof,
+`POST /api/action-proofs/cart` or `/checkout` returns a one-time action token to attach as
+`X-DropShield-Action` on the corresponding mutation; a valid cart action reserves one synthetic
+unit, and checkout commits it only after the origin succeeds.
+
+### Optional Redis state
+
+The committed default is `InMemory` and needs no Redis service. For a local Redis-mode run:
 
 ```powershell
-$loadTests = (Resolve-Path .\load-tests).Path
-
-# Smoke
-docker run --rm -e TARGET_BASE_URL=http://host.docker.internal:5058 --mount "type=bind,source=$loadTests,target=/scripts" grafana/k6:2.2.0 run /scripts/smoke.js
-
-# Normal customer traffic
-docker run --rm -e TARGET_BASE_URL=http://host.docker.internal:5058 -e PROFILE=SMALL --mount "type=bind,source=$loadTests,target=/scripts" grafana/k6:2.2.0 run /scripts/normal-traffic.js
-
-# Flash crowd
-docker run --rm -e TARGET_BASE_URL=http://host.docker.internal:5058 -e PROFILE=SMALL --mount "type=bind,source=$loadTests,target=/scripts" grafana/k6:2.2.0 run /scripts/flash-crowd.js
-
-# Aggressive bot-like stock polling
-docker run --rm -e TARGET_BASE_URL=http://host.docker.internal:5058 -e PROFILE=SMALL --mount "type=bind,source=$loadTests,target=/scripts" grafana/k6:2.2.0 run /scripts/bot-like-stock-polling.js
-
-# Mixed Pokémon drop baseline
-docker run --rm -e TARGET_BASE_URL=http://host.docker.internal:5058 -e PROFILE=SMALL --mount "type=bind,source=$loadTests,target=/scripts" grafana/k6:2.2.0 run /scripts/mixed-drop.js
-```
-
-The scripts reject non-local target hosts. See [`load-tests/README.md`](load-tests/README.md) for profiles, overrides, summary exports, and safety details. Executed results are in [`docs/BASELINE_PERFORMANCE.md`](docs/BASELINE_PERFORMANCE.md).
-
-## Phase 3 — Protected local path
-
-Start DemoStore as above. In a second terminal, start DropShield with development-only synthetic identity and metrics enabled by `appsettings.Development.json`:
-
-```powershell
-$env:ASPNETCORE_ENVIRONMENT = 'Development'
-$env:Logging__LogLevel__Default = 'Warning'
-dotnet run --project src/DropShield.Api --configuration Release --no-launch-profile --urls http://localhost:5257
-```
-
-Allowed requests follow `localhost:5257 → localhost:5058`; rate-limited requests receive JSON HTTP 429 and never reach DemoStore. Run the protected normal control:
-
-```powershell
-$loadTests = (Resolve-Path .\load-tests).Path
-docker run --rm -e TARGET_BASE_URL=http://host.docker.internal:5257 -e PROTECTED_MODE=true -e PROFILE=SMALL --mount "type=bind,source=$loadTests,target=/scripts" grafana/k6:2.2.0 run /scripts/normal-traffic.js
-```
-
-Run a protected mixed comparison with polling cadence compensation:
-
-```powershell
-docker run --rm -e TARGET_BASE_URL=http://host.docker.internal:5257 -e PROTECTED_MODE=true -e PROFILE=SMALL -e POLL_INTERVAL_SECONDS=0.05 --mount "type=bind,source=$loadTests,target=/scripts" grafana/k6:2.2.0 run /scripts/mixed-drop.js
-```
-
-See [`docs/PHASE3_RATE_LIMITING.md`](docs/PHASE3_RATE_LIMITING.md) for architecture and policy behavior, and [`docs/PROTECTED_PERFORMANCE.md`](docs/PROTECTED_PERFORMANCE.md) for measured before/after results.
-
-## Phase 4 — Internal observability
-
-With DropShield running in Development, inspect the aggregate JSON snapshot:
-
-```powershell
-Invoke-RestMethod http://localhost:5257/internal/metrics
-```
-
-Reset the current collection for a controlled demonstration:
-
-```powershell
-Invoke-WebRequest -Method Post http://localhost:5257/internal/metrics/reset
-```
-
-These endpoints return 404 in Production or when internal metrics are disabled. They expose no client identifiers or request data. See [`docs/PHASE4_OBSERVABILITY.md`](docs/PHASE4_OBSERVABILITY.md) for the schema, metric definitions, bounded implementation, and attribution limits.
-
-## Phase 5 — Optional Redis state
-
-The committed default remains `InMemory` and requires no Redis service. For a controlled local Redis-mode run, start one loopback-only container:
-
-```powershell
-docker run --rm --name dropshield-redis-phase5 -p 127.0.0.1:6379:6379 redis:8.8.1-alpine
-```
-
-Then configure the API process without committing a secret:
-
-```powershell
+docker run --rm --name dropshield-redis -p 127.0.0.1:6379:6379 redis:8.8.1-alpine
 $env:DropShield__StateProvider = 'Redis'
 $env:DropShield__Redis__ConnectionString = '127.0.0.1:6379'
 $env:DropShield__Redis__IdentityHashKey = [Convert]::ToHexString(
     [Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
-
 dotnet run --project src/DropShield.Api
 ```
 
-Redis unavailability is fail-closed: protected traffic receives HTTP 503 and is not forwarded or silently placed on a weaker local limiter. See [`docs/PHASE5_DISTRIBUTED_STATE.md`](docs/PHASE5_DISTRIBUTED_STATE.md) and [ADR-003](docs/adr/ADR-003-distributed-state-provider.md).
+Redis unavailability is fail-closed: protected traffic gets HTTP 503, never a silent fallback
+to a weaker local limit. See [traffic control](docs/traffic-control.md).
 
-## Phase 6–9 — Waiting room, admission, action proof, and reservation
+## Load testing and benchmarks
 
-Admission is enabled for `pokemon-etb` in the committed PoC configuration. A protected-stock request first passes the per-client abuse limit. The first configured batch of sessions is admitted; eligible excess sessions receive:
-
-```json
-{
-  "status": "waiting",
-  "drop": "pokemon-etb",
-  "retryAfterSeconds": 5
-}
-```
-
-The response is HTTP 202 with `Retry-After`. Poll the same protected-stock URL using the returned `DropShield.Session` cookie. No exact queue position is promised. An admitted response also sets a separate short-lived HttpOnly `DropShield.Admission` cookie carrying HMAC-SHA256 proof bound to that session and drop. A client with valid admission proof can obtain a cart or checkout action proof from `POST /api/action-proofs/cart` or `POST /api/action-proofs/checkout`, then attach it as `X-DropShield-Action` to the corresponding mutation. Each action proof is consumed exactly once before DemoStore forwarding. A valid cart action then reserves one synthetic unit; checkout commits that reservation only after DemoStore succeeds. See [`docs/PHASE6_ADMISSION_CONTROL.md`](docs/PHASE6_ADMISSION_CONTROL.md), [`docs/PHASE7_SIGNED_ADMISSION.md`](docs/PHASE7_SIGNED_ADMISSION.md), [`docs/PHASE8_REPLAY_PROTECTION.md`](docs/PHASE8_REPLAY_PROTECTION.md), and [`docs/PHASE9_INVENTORY_RESERVATION.md`](docs/PHASE9_INVENTORY_RESERVATION.md).
+`load-tests/` contains k6 scenarios that can target either the unprotected DemoStore or the
+protected DropShield entry point; see [`load-tests/README.md`](load-tests/README.md) for
+commands and profiles. Executed results are in [docs/benchmarks.md](docs/benchmarks.md); raw k6
+summaries are versioned under [`load-tests/results/`](load-tests/results/). Both scripts and
+DropShield reject any target that isn't localhost, loopback, or `host.docker.internal`.
 
 ## Docker
-
-Build the images from the repository root:
 
 ```powershell
 docker build -f src/DropShield.Api/Dockerfile -t dropshield-api .

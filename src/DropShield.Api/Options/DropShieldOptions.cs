@@ -18,6 +18,8 @@ public sealed class DropShieldOptions
 
     public InternalMetricsOptions InternalMetrics { get; set; } = new();
 
+    public InternalHashingOptions InternalHashing { get; set; } = new();
+
     public RedisStateOptions Redis { get; set; } = new();
 
     public AdmissionOptions Admission { get; set; } = new();
@@ -51,6 +53,17 @@ public sealed class SyntheticClientIdentityOptions
 public sealed class InternalMetricsOptions
 {
     public bool Enabled { get; set; }
+}
+
+/// <summary>
+/// Shared key for internal, non-bearer HMAC partitioning (reservation ownership, behavioural
+/// actor identity). Distinct from the admission token, action proof, and origin assertion
+/// signing keys so rotating any one of them does not silently reshuffle unrelated Redis
+/// partitions.
+/// </summary>
+public sealed class InternalHashingOptions
+{
+    public string SigningKey { get; set; } = string.Empty;
 }
 
 public sealed class RedisStateOptions
@@ -111,6 +124,10 @@ public sealed class ActionProofOptions
     public int ReplayTtlMarginSeconds { get; set; } = 30;
 
     public int MaximumInMemoryMarkers { get; set; } = 100_000;
+
+    public string KeyId { get; set; } = "primary";
+
+    public string SigningKey { get; set; } = string.Empty;
 }
 
 public sealed class InventoryReservationOptions

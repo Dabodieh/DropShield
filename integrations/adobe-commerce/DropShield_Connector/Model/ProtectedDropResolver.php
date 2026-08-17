@@ -33,6 +33,16 @@ class ProtectedDropResolver
     }
 
     /**
+     * The drop identifier every protected SKU maps to. This connector supports exactly one
+     * active protected drop at a time (matching DropShield.Api's single-drop admission
+     * model) rather than one drop per SKU.
+     */
+    public function getDropId(?int $storeId = null): string
+    {
+        return $this->config->getDropId($storeId);
+    }
+
+    /**
      * @param string[] $skus
      */
     public function containsProtected(array $skus, ?int $storeId = null): bool

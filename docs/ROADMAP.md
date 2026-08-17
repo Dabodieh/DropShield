@@ -1,17 +1,28 @@
-# DropShield roadmap
+# Roadmap
 
-Current status: Phases 1–10 complete. Phase 11 has not started.
+## Implemented
 
-- Phase 1 — Foundation / Synthetic Demo Store
-- Phase 2 — Baseline Load Testing
-- Phase 3 — Traffic Policy / Rate Limiting
-- Phase 4 — Observability
-- Phase 5 — Distributed State
-- Phase 6 — Admission / Waiting Room
-- Phase 7 — Signed Admission
-- Phase 8 — Ecommerce Transaction Protection
-- Phase 9 — Inventory / Reservation Controls
-- Phase 10 — Behavioural / Bot Controls
-- Phase 11 — Adobe Commerce Integration
-- Phase 12 — Edge Provider Integrations
-- Phase 13 — Hamleys-Specific Demonstration Profile
+- Per-client and aggregate rate limiting, with optional Redis-backed distributed state.
+- Bounded internal observability (`/internal/metrics`).
+- Waiting-room admission with signed HMAC admission proof.
+- One-time action proof (replay protection) for cart/checkout.
+- Synthetic inventory reservation for the protected drop.
+- Behavioural risk scoring.
+- Adobe Commerce / Magento 2 connector with signed origin assertions.
+
+See [architecture](ARCHITECTURE.md) for how these fit together, and the topic docs it links to
+for each control's detail.
+
+## Future work
+
+- **Edge-provider integrations** (Fastly, Cloudflare, Akamai) — orchestrating existing edge/CDN
+  capabilities ahead of the application tier, per [ADR-001](adr/ADR-001-edge-provider-neutral.md).
+- **Retailer-specific demonstration profile** — a configuration profile built from confirmed
+  platform research, not a claim of production deployment.
+- **Key rotation** for admission/action-proof/origin-assertion signing keys (the `kid` claim
+  already supports this; only a previous-key verification ring is missing).
+- **Idempotency keys** for cart/checkout, to let a client safely retry a lost response instead
+  of hitting the replay-conflict path.
+
+None of this is scheduled or implemented. This project does not target or test any specific
+retailer's production systems.

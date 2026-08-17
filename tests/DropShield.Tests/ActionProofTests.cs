@@ -144,6 +144,42 @@ public sealed class ActionProofTests
     }
 
     [Fact]
+    public async Task RevokedAdmissionLease_CannotObtainActionProofEvenWithUnexpiredToken()
+    {
+        var admissionState = new RevocableAdmissionState();
+        using var factory = new DropShieldApiFactory(Settings(), admissionState: admissionState);
+        using var client = CreateClient(factory);
+        var admissionToken = await GetAdmissionTokenAsync(client, "admitted", Session);
+
+        admissionState.Revoke();
+        var revoked = await RequestActionProofAsync(client, "proof-client", Session, admissionToken, "cart");
+
+        Assert.Equal(HttpStatusCode.Forbidden, revoked.StatusCode);
+    }
+
+    [Fact]
+    public async Task RevokedAdmissionLease_BlocksMutationEvenWithValidActionProof()
+    {
+        var admissionState = new RevocableAdmissionState();
+        using var factory = new DropShieldApiFactory(Settings(), admissionState: admissionState);
+        using var client = CreateClient(factory);
+        var admissionToken = await GetAdmissionTokenAsync(client, "admitted", Session);
+        var actionProof = await GetActionProofAsync(client, "proof", Session, admissionToken, "cart");
+
+        admissionState.Revoke();
+        var afterRevocation = await SendMutationAsync(
+            client,
+            "mutation",
+            Session,
+            admissionToken,
+            actionProof,
+            "/api/cart");
+
+        Assert.Equal(HttpStatusCode.Forbidden, afterRevocation.StatusCode);
+        Assert.Equal(0, factory.Origin.GetRequestCount("/api/cart"));
+    }
+
+    [Fact]
     public async Task ActionProofIssuance_RemainsSubjectToCartRateLimit()
     {
         var settings = Settings();

@@ -13,6 +13,7 @@ use Magento\Store\Model\ScopeInterface;
 class Config
 {
     private const XML_PATH_ENABLED = 'dropshield_connector/general/enabled';
+    private const XML_PATH_DROP_ID = 'dropshield_connector/general/drop_id';
     private const XML_PATH_PROTECTED_SKUS = 'dropshield_connector/general/protected_skus';
     private const XML_PATH_KEY_ID = 'dropshield_connector/origin_assertion/key_id';
     private const XML_PATH_SIGNING_KEY = 'dropshield_connector/origin_assertion/signing_key';
@@ -27,6 +28,20 @@ class Config
     {
         return (bool) $this->scopeConfig->isSetFlag(
             self::XML_PATH_ENABLED,
+            ScopeInterface::SCOPE_STORE,
+            $storeId
+        );
+    }
+
+    /**
+     * The single active protected drop identifier. Must match DropShield.Api's
+     * Admission:ProtectedProduct — DropShield signs origin assertions for exactly one drop,
+     * and every protected SKU (see getProtectedSkus()) maps to it.
+     */
+    public function getDropId(?int $storeId = null): string
+    {
+        return (string) $this->scopeConfig->getValue(
+            self::XML_PATH_DROP_ID,
             ScopeInterface::SCOPE_STORE,
             $storeId
         );

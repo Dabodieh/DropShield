@@ -37,4 +37,13 @@ final class ProtectedDropResolverTest extends TestCase
 
         self::assertFalse($resolver->isProtected('pokemon-etb'));
     }
+
+    public function testGetDropIdDelegatesToConfig(): void
+    {
+        $config = $this->createMock(Config::class);
+        $config->method('getDropId')->willReturn('pokemon-etb');
+        $resolver = new ProtectedDropResolver($config);
+
+        self::assertSame('pokemon-etb', $resolver->getDropId());
+    }
 }

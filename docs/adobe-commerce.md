@@ -16,7 +16,7 @@ Client -> DropShield.Api (rate/admission/proof/replay/reservation/behaviour)
        -> normal Commerce cart/checkout processing
 ```
 
-Phase 12 (edge-provider integration: Fastly/Cloudflare/Akamai) is out of scope here. A production
+Edge-provider integration (Fastly/Cloudflare/Akamai) is out of scope here. A production
 deployment should still restrict direct network access to the Commerce origin where
 infrastructure permits; the connector is application-level defence in depth, not a replacement
 for that.
@@ -35,6 +35,11 @@ issued for. Excluded: customer names, email, address, payment details, raw cooki
 addresses, admission tokens, action tokens.
 
 Full contract and a deterministic cross-language test vector: `contracts/origin-assertion-v1.json`.
+The contract's `routes` object is the single source of truth for the canonical `"POST /api/cart"`
+/ `"POST /api/checkout"` route literals that must match byte-for-byte between
+`TrafficRouteClassifier.GetRouteTemplate` (C#) and each plugin's `ROUTE` constant (PHP) — both
+sides have a test asserting their literal against this contract file, so a future rename on
+either side fails a test instead of only failing at runtime against a real Magento instance.
 
 ### DropShield.Api side
 
@@ -86,10 +91,20 @@ verified.
 
 ### Protected SKU configuration
 
-Protected SKUs are configured, not hard-coded (`Stores > Configuration > DropShield Connector >
-General > Protected SKUs`, comma-separated). `pokemon-etb` is sample data for the PoC only.
-`ProtectedDropResolver` is the single place that decision is made; ordinary SKUs are never routed
-through DropShield semantics.
+This connector supports exactly one active protected drop, matching DropShield.Api's
+single-value `Admission:ProtectedProduct`. `Stores > Configuration > DropShield Connector >
+General > Protected Drop ID` configures that drop identifier, and `Protected SKUs`
+(comma-separated) configures every SKU that maps to it — multiple SKUs can share the one drop,
+but the connector does not sign or validate assertions for more than one drop at a time.
+`pokemon-etb` is sample data for the PoC only. `ProtectedDropResolver` is the single place both
+decisions are made (which SKUs are protected, and what drop ID they map to); ordinary SKUs are
+never routed through DropShield semantics.
+
+A protected SKU whose configured Drop ID does not match DropShield.Api's
+`Admission:ProtectedProduct` will fail closed: DropShield never signs an assertion for a drop
+it isn't configured to protect, so every mutation for a misconfigured SKU is permanently
+rejected. This is a configuration error, not a security gap — check both sides agree on the
+same drop identifier before relying on multi-SKU protection.
 
 ### Cart and checkout enforcement
 
@@ -116,23 +131,22 @@ through environment-scoped deployment configuration, never committed or exported
 Because both extension points are on `Quote` service contracts rather than specific controllers,
 REST (`/V1/carts/mine/items`, `/V1/carts/mine/order`), GraphQL (add-to-cart resolvers,
 `placeOrder`), and storefront one-page checkout all converge on the same enforcement. Coverage
-has not been independently verified against a running Magento instance in this phase (see
-Limitations).
+has not been independently verified against a running Magento instance (see Limitations).
 
 ## Limitations
 
-- No local Magento/Adobe Commerce runtime was available or brought up in this phase. The PHP
-  crypto core (`OriginAssertionValidator`) was verified directly against the same deterministic
-  test vector the C# suite uses, executed in a disposable `php:8.2-cli` container — it accepted
-  the valid vector and correctly rejected a tampered token and a body-hash mismatch. Full
-  PHPUnit execution through Composer was blocked locally by a transient GitHub codeload rate
-  limit inside that container, not by a problem in the module. Runtime Magento wiring
-  (plugin registration actually firing, admin config screen, REST/GraphQL end-to-end) is
+- No local Magento/Adobe Commerce runtime was available or brought up during development. The
+  PHP crypto core (`OriginAssertionValidator`) was verified directly against the same
+  deterministic test vector the C# suite uses, executed in a disposable `php:8.2-cli` container
+  — it accepted the valid vector and correctly rejected a tampered token and a body-hash
+  mismatch. Full PHPUnit execution through Composer was blocked locally by a transient GitHub
+  codeload rate limit inside that container, not by a problem in the module. Runtime Magento
+  wiring (plugin registration actually firing, admin config screen, REST/GraphQL end-to-end) is
   therefore unverified and should be validated against a real instance before any further use.
 - Composer constraints target currently supported Magento 2 / Adobe Commerce component versions
   (`magento/framework ^103.0`, `magento/module-quote ^101.0`, `magento/module-checkout ^100.4`);
   no claim of compatibility with older/EOL Magento releases is made.
 - Webhooks and App Builder are not used; documented only as possible future options for
-  Commerce lifecycle events, not a Phase 11 dependency.
+  Commerce lifecycle events, not a current dependency.
 - Multi-shipment/multi-address checkout and any non-standard order-placement path are not
   covered — see "Extension points" above.

@@ -94,9 +94,9 @@ Percentages must total 100. Durations use k6 units such as `500ms`, `30s`, or `2
 
 k6 reports total and per-second requests, successes and failures, HTTP error rate, iterations, active/max VUs, and average/median/p90/p95/p99 latency. Custom trends separately capture health, product-list, product-detail, stock, and cart latency. The mixed benchmark adds stage tags so request counts, errors, overall latency, and stock latency can be compared from A through D.
 
-Raw executed summaries are in [`results/`](results/) and the interpreted baseline is in [`docs/BASELINE_PERFORMANCE.md`](../docs/BASELINE_PERFORMANCE.md).
+Raw executed summaries are in [`results/`](results/) and the interpreted results are in [`docs/benchmarks.md`](../docs/benchmarks.md).
 
-## Protected Phase 3 runs
+## Protected runs (through DropShield)
 
 Start DemoStore on port 5058 and DropShield.Api in Development on port 5257 as documented in the root README. Reset development counters, wait for the one-second stock window to replenish, and run the normal control:
 
@@ -125,11 +125,11 @@ docker run --rm -e TARGET_BASE_URL=http://host.docker.internal:5257 -e PROTECTED
 Invoke-RestMethod http://localhost:5257/internal/metrics
 ```
 
-`PROTECTED_MODE=true` sends a stable `X-DropShield-Test-Client` value per k6 VU and classifies HTTP 429 as an expected policy outcome. DropShield trusts that header only in explicitly enabled Development/Testing environments. Direct Phase 2 commands remain unchanged and do not send the header.
+`PROTECTED_MODE=true` sends a stable `X-DropShield-Test-Client` value per k6 VU and classifies HTTP 429 as an expected policy outcome. DropShield trusts that header only in explicitly enabled Development/Testing environments. Direct (unprotected) commands remain unchanged and do not send the header.
 
 The explicit 50 ms poll interval compensates for closed-loop feedback: against the direct origin, the 50 ms stock response naturally paces each VU, while a sub-millisecond 429 would otherwise allow thousands of retries per second. It does not change VU counts or the 70/20/10 mixed allocation.
 
-Protected summaries include incoming, allowed, rate-limited, and stock-specific counters plus separate allowed/rejected latency trends. Authoritative origin-forwarding evidence comes from DropShield's development counters. Actual results are interpreted in [`docs/PROTECTED_PERFORMANCE.md`](../docs/PROTECTED_PERFORMANCE.md).
+Protected summaries include incoming, allowed, rate-limited, and stock-specific counters plus separate allowed/rejected latency trends. Authoritative origin-forwarding evidence comes from DropShield's development counters. Results are interpreted in [`docs/benchmarks.md`](../docs/benchmarks.md).
 
 ## Synthetic-backend limitation
 

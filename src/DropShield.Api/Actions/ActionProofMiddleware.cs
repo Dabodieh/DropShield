@@ -27,7 +27,13 @@ public sealed class ActionProofMiddleware(RequestDelegate next)
             return;
         }
 
-        var admission = admissionAuthorizer.Authorize(context);
+        var admission = await admissionAuthorizer.AuthorizeAsync(context, context.RequestAborted);
+        if (admission.IsStateUnavailable)
+        {
+            await WriteStateUnavailableAsync(context);
+            return;
+        }
+
         if (!admission.IsAuthorized)
         {
             await WriteAdmissionRequiredAsync(context);
@@ -118,6 +124,16 @@ public sealed class ActionProofMiddleware(RequestDelegate next)
             new GatewayErrorResponse(
                 "admission_required",
                 "Admission is required for this protected drop."),
+            context.RequestAborted);
+    }
+
+    private static Task WriteStateUnavailableAsync(HttpContext context)
+    {
+        context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+        return context.Response.WriteAsJsonAsync(
+            new GatewayErrorResponse(
+                "state_unavailable",
+                "Admission state is temporarily unavailable."),
             context.RequestAborted);
     }
 

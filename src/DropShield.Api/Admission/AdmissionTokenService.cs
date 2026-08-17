@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using DropShield.Api.Options;
+using DropShield.Api.Security;
 using Microsoft.Extensions.Options;
 
 namespace DropShield.Api.Admission;
@@ -28,13 +29,13 @@ public sealed class AdmissionTokenService(
             1,
             key.KeyId,
             drop,
-            Base64UrlEncode(DeriveSessionBinding(key.Material, sessionId)),
+            Base64Url.Encode(DeriveSessionBinding(key.Material, sessionId)),
             issuedAt,
             checked(issuedAt + _options.LifetimeSeconds));
-        var payloadPart = Base64UrlEncode(JsonSerializer.SerializeToUtf8Bytes(payload, JsonOptions));
+        var payloadPart = Base64Url.Encode(JsonSerializer.SerializeToUtf8Bytes(payload, JsonOptions));
         var signingInput = $"{Version}.{payloadPart}";
         var signature = HMACSHA256.HashData(key.Material, Encoding.UTF8.GetBytes(signingInput));
-        return $"{signingInput}.{Base64UrlEncode(signature)}";
+        return $"{signingInput}.{Base64Url.Encode(signature)}";
     }
 
     public AdmissionTokenValidationResult Validate(string token, string drop, string sessionId)
@@ -51,8 +52,8 @@ public sealed class AdmissionTokenService(
                 AdmissionTokenValidationFailure.UnsupportedVersion);
         }
 
-        if (!TryBase64UrlDecode(parts[1], out var payloadBytes) ||
-            !TryBase64UrlDecode(parts[2], out var actualSignature))
+        if (!Base64Url.TryDecode(parts[1], out var payloadBytes) ||
+            !Base64Url.TryDecode(parts[2], out var actualSignature))
         {
             return AdmissionTokenValidationResult.Invalid(AdmissionTokenValidationFailure.Malformed);
         }
@@ -98,7 +99,7 @@ public sealed class AdmissionTokenService(
             return AdmissionTokenValidationResult.Invalid(AdmissionTokenValidationFailure.WrongDrop);
         }
 
-        if (!TryBase64UrlDecode(payload.Session, out var actualBinding))
+        if (!Base64Url.TryDecode(payload.Session, out var actualBinding))
         {
             return AdmissionTokenValidationResult.Invalid(AdmissionTokenValidationFailure.Malformed);
         }
@@ -111,44 +112,6 @@ public sealed class AdmissionTokenService(
 
     private static byte[] DeriveSessionBinding(byte[] key, string sessionId) =>
         HMACSHA256.HashData(key, Encoding.UTF8.GetBytes($"{SessionBindingPrefix}{sessionId}"));
-
-    private static string Base64UrlEncode(byte[] value) => Convert.ToBase64String(value)
-        .TrimEnd('=')
-        .Replace('+', '-')
-        .Replace('/', '_');
-
-    private static bool TryBase64UrlDecode(string value, out byte[] decoded)
-    {
-        decoded = [];
-        if (string.IsNullOrEmpty(value) || value.Any(character =>
-                !char.IsAsciiLetterOrDigit(character) && character is not '-' and not '_'))
-        {
-            return false;
-        }
-
-        try
-        {
-            var base64 = value.Replace('-', '+').Replace('_', '/');
-            base64 = (base64.Length % 4) switch
-            {
-                0 => base64,
-                2 => base64 + "==",
-                3 => base64 + "=",
-                _ => string.Empty,
-            };
-            if (base64.Length == 0)
-            {
-                return false;
-            }
-
-            decoded = Convert.FromBase64String(base64);
-            return true;
-        }
-        catch (FormatException)
-        {
-            return false;
-        }
-    }
 
     private sealed record AdmissionTokenPayload(
         int V,

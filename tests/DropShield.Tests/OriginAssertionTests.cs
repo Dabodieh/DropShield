@@ -44,8 +44,9 @@ public sealed class OriginAssertionTests
         var (service, _) = CreateService();
         var assertion = service.Issue("pokemon-etb", "cart", "POST", "POST /api/cart", Body);
         var parts = assertion.Split('.');
-        var tamperedSignature = parts[2][..^1] + (parts[2][^1] == 'A' ? 'B' : 'A');
-        var tampered = $"{parts[0]}.{parts[1]}.{tamperedSignature}";
+        var signatureBytes = Base64UrlDecode(parts[2]);
+        signatureBytes[0] ^= 0xFF;
+        var tampered = $"{parts[0]}.{parts[1]}.{Base64UrlEncode(signatureBytes)}";
 
         var result = service.Validate(tampered, "pokemon-etb", "cart", "POST", "POST /api/cart", Body);
 
@@ -232,4 +233,21 @@ public sealed class OriginAssertionTests
 
     private static HttpClient CreateClient(DropShieldApiFactory factory) =>
         factory.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
+
+    private static byte[] Base64UrlDecode(string value)
+    {
+        var base64 = value.Replace('-', '+').Replace('_', '/');
+        base64 = (base64.Length % 4) switch
+        {
+            2 => base64 + "==",
+            3 => base64 + "=",
+            _ => base64,
+        };
+        return Convert.FromBase64String(base64);
+    }
+
+    private static string Base64UrlEncode(byte[] value) => Convert.ToBase64String(value)
+        .TrimEnd('=')
+        .Replace('+', '-')
+        .Replace('/', '_');
 }

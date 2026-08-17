@@ -88,5 +88,5 @@ No migration is required. Keep `DropShield.Api`, `DropShield.DemoStore`, and `Dr
 
 - [ADR-001: Edge-provider-neutral core](ADR-001-edge-provider-neutral.md)
 - [DropShield architecture direction](../ARCHITECTURE.md)
-- [Hamleys platform research](../HAMLEYS_PLATFORM_RESEARCH.md)
+- [Hamleys platform research](../hamleys-platform-research.md)
 

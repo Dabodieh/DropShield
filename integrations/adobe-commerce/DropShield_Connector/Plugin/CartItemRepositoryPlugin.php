@@ -13,9 +13,11 @@ use Magento\Quote\Api\Data\CartItemInterface;
 /**
  * Intercepts CartItemRepositoryInterface::save, the public service contract
  * behind both the REST cart-items endpoint and the GraphQL add-to-cart
- * resolvers, so protected drops require a valid origin assertion regardless
+ * resolvers, so a protected SKU requires a valid origin assertion regardless
  * of which storefront surface issued the mutation.
  *
+ * This connector supports exactly one active protected drop (see
+ * ProtectedDropResolver::getDropId()); every protected SKU maps to it.
  * Ordinary (unprotected) SKUs pass through untouched.
  */
 class CartItemRepositoryPlugin
@@ -37,6 +39,11 @@ class CartItemRepositoryPlugin
             return;
         }
 
-        $this->guard->requireValidAssertion($this->request, $sku, self::ACTION, self::ROUTE);
+        $this->guard->requireValidAssertion(
+            $this->request,
+            $this->dropResolver->getDropId(),
+            self::ACTION,
+            self::ROUTE
+        );
     }
 }

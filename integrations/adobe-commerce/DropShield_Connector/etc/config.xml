@@ -4,6 +4,7 @@
         <dropshield_connector>
             <general>
                 <enabled>0</enabled>
+                <drop_id>pokemon-etb</drop_id>
             </general>
             <origin_assertion>
                 <header_name>X-DropShield-Origin-Assertion</header_name>

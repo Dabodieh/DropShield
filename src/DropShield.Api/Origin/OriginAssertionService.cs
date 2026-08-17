@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using DropShield.Api.Options;
+using DropShield.Api.Security;
 using Microsoft.Extensions.Options;
 
 namespace DropShield.Api.Origin;
@@ -30,14 +31,14 @@ public sealed class OriginAssertionService(
             action,
             method.ToUpperInvariant(),
             route,
-            Base64UrlEncode(SHA256.HashData(body)),
-            Base64UrlEncode(RandomNumberGenerator.GetBytes(16)),
+            Base64Url.Encode(SHA256.HashData(body)),
+            Base64Url.Encode(RandomNumberGenerator.GetBytes(16)),
             issuedAt,
             checked(issuedAt + _options.LifetimeSeconds));
-        var payloadPart = Base64UrlEncode(JsonSerializer.SerializeToUtf8Bytes(payload, JsonOptions));
+        var payloadPart = Base64Url.Encode(JsonSerializer.SerializeToUtf8Bytes(payload, JsonOptions));
         var signingInput = $"{Version}.{payloadPart}";
         var signature = HMACSHA256.HashData(key.Material, Encoding.UTF8.GetBytes(signingInput));
-        return $"{signingInput}.{Base64UrlEncode(signature)}";
+        return $"{signingInput}.{Base64Url.Encode(signature)}";
     }
 
     public OriginAssertionValidationResult Validate(
@@ -59,8 +60,8 @@ public sealed class OriginAssertionService(
             return OriginAssertionValidationResult.Invalid(OriginAssertionValidationFailure.UnsupportedVersion);
         }
 
-        if (!TryBase64UrlDecode(parts[1], out var payloadBytes) ||
-            !TryBase64UrlDecode(parts[2], out var actualSignature))
+        if (!Base64Url.TryDecode(parts[1], out var payloadBytes) ||
+            !Base64Url.TryDecode(parts[2], out var actualSignature))
         {
             return OriginAssertionValidationResult.Invalid(OriginAssertionValidationFailure.Malformed);
         }
@@ -122,51 +123,13 @@ public sealed class OriginAssertionService(
         }
 
         var expectedBodyHash = SHA256.HashData(body);
-        if (!TryBase64UrlDecode(payload.BodyHash, out var actualBodyHash) ||
+        if (!Base64Url.TryDecode(payload.BodyHash, out var actualBodyHash) ||
             !CryptographicOperations.FixedTimeEquals(expectedBodyHash, actualBodyHash))
         {
             return OriginAssertionValidationResult.Invalid(OriginAssertionValidationFailure.BodyMismatch);
         }
 
         return OriginAssertionValidationResult.Valid();
-    }
-
-    private static string Base64UrlEncode(byte[] value) => Convert.ToBase64String(value)
-        .TrimEnd('=')
-        .Replace('+', '-')
-        .Replace('/', '_');
-
-    private static bool TryBase64UrlDecode(string value, out byte[] decoded)
-    {
-        decoded = [];
-        if (string.IsNullOrEmpty(value) || value.Any(character =>
-                !char.IsAsciiLetterOrDigit(character) && character is not '-' and not '_'))
-        {
-            return false;
-        }
-
-        try
-        {
-            var base64 = value.Replace('-', '+').Replace('_', '/');
-            base64 = (base64.Length % 4) switch
-            {
-                0 => base64,
-                2 => base64 + "==",
-                3 => base64 + "=",
-                _ => string.Empty,
-            };
-            if (base64.Length == 0)
-            {
-                return false;
-            }
-
-            decoded = Convert.FromBase64String(base64);
-            return true;
-        }
-        catch (FormatException)
-        {
-            return false;
-        }
     }
 
     private sealed record OriginAssertionPayload(

@@ -11,6 +11,11 @@
     "signature": "HMAC-SHA256(key = shared origin assertion signing key, message = signingInput)",
     "timestamps": "Unix epoch seconds (UTC), integers"
   },
+  "routes": {
+    "description": "Canonical route templates that must appear byte-identical in the 'route' claim on both the issuing side (DropShield.Api) and every verifying connector. A mismatch is a protocol bug, not a runtime configuration issue.",
+    "cart": "POST /api/cart",
+    "checkout": "POST /api/checkout"
+  },
   "payloadFields": {
     "v": "integer, format version, must equal 1",
     "kid": "string, key identifier for the active signing key",

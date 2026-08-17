@@ -82,10 +82,11 @@ public sealed partial class DropShieldOptionsValidator(IHostEnvironment environm
 
         ValidateAdmission(options, failures);
         ValidateAdmissionTokens(options, isControlledEnvironment, failures);
-        ValidateActionProofs(options, failures);
+        ValidateActionProofs(options, isControlledEnvironment, failures);
         ValidateInventoryReservation(options, failures);
         ValidateBehaviourScoring(options, failures);
         ValidateOriginAssertions(options, isControlledEnvironment, failures);
+        ValidateInternalHashing(options, isControlledEnvironment, failures);
 
         return failures.Count == 0
             ? ValidateOptionsResult.Success
@@ -212,6 +213,7 @@ public sealed partial class DropShieldOptionsValidator(IHostEnvironment environm
 
     private static void ValidateActionProofs(
         DropShieldOptions options,
+        bool isControlledEnvironment,
         ICollection<string> failures)
     {
         var proofs = options.ActionProofs;
@@ -249,6 +251,54 @@ public sealed partial class DropShieldOptionsValidator(IHostEnvironment environm
             failures.Add(
                 "DropShield:ActionProofs:MaximumInMemoryMarkers must be between 1 and 1000000.");
         }
+
+        if (!KeyIdPattern().IsMatch(proofs.KeyId))
+        {
+            failures.Add("DropShield:ActionProofs:KeyId is invalid.");
+        }
+
+        if (string.IsNullOrWhiteSpace(proofs.SigningKey))
+        {
+            if (!isControlledEnvironment)
+            {
+                failures.Add(
+                    "DropShield:ActionProofs:SigningKey is required in Production or other non-controlled environments.");
+            }
+
+            return;
+        }
+
+        byte[] key;
+        try
+        {
+            key = Convert.FromBase64String(proofs.SigningKey);
+        }
+        catch (FormatException)
+        {
+            failures.Add(
+                "DropShield:ActionProofs:SigningKey must be Base64-encoded and contain at least 32 random bytes.");
+            return;
+        }
+
+        if (key.Length < 32)
+        {
+            failures.Add(
+                "DropShield:ActionProofs:SigningKey must be Base64-encoded and contain at least 32 random bytes.");
+        }
+
+        if (string.Equals(proofs.SigningKey, options.AdmissionTokens.SigningKey, StringComparison.Ordinal))
+        {
+            failures.Add(
+                "DropShield:ActionProofs:SigningKey must not reuse the admission token signing key.");
+        }
+
+        if (string.Equals(proofs.SigningKey, options.OriginAssertions.SigningKey, StringComparison.Ordinal))
+        {
+            failures.Add(
+                "DropShield:ActionProofs:SigningKey must not reuse the origin assertion signing key.");
+        }
+
+        CryptographicOperations.ZeroMemory(key);
     }
 
     private static void ValidateInventoryReservation(
@@ -366,6 +416,55 @@ public sealed partial class DropShieldOptionsValidator(IHostEnvironment environm
         {
             failures.Add(
                 "DropShield:OriginAssertions:SigningKey must not reuse the admission token signing key.");
+        }
+
+        if (string.Equals(assertions.SigningKey, options.ActionProofs.SigningKey, StringComparison.Ordinal))
+        {
+            failures.Add(
+                "DropShield:OriginAssertions:SigningKey must not reuse the action proof signing key.");
+        }
+
+        CryptographicOperations.ZeroMemory(key);
+    }
+
+    private static void ValidateInternalHashing(
+        DropShieldOptions options,
+        bool isControlledEnvironment,
+        ICollection<string> failures)
+    {
+        if (!options.InventoryReservation.Enabled && !options.BehaviourScoring.Enabled)
+        {
+            return;
+        }
+
+        var configuredKey = options.InternalHashing.SigningKey;
+        if (string.IsNullOrWhiteSpace(configuredKey))
+        {
+            if (!isControlledEnvironment)
+            {
+                failures.Add(
+                    "DropShield:InternalHashing:SigningKey is required in Production or other non-controlled environments.");
+            }
+
+            return;
+        }
+
+        byte[] key;
+        try
+        {
+            key = Convert.FromBase64String(configuredKey);
+        }
+        catch (FormatException)
+        {
+            failures.Add(
+                "DropShield:InternalHashing:SigningKey must be Base64-encoded and contain at least 32 random bytes.");
+            return;
+        }
+
+        if (key.Length < 32)
+        {
+            failures.Add(
+                "DropShield:InternalHashing:SigningKey must be Base64-encoded and contain at least 32 random bytes.");
         }
 
         CryptographicOperations.ZeroMemory(key);

@@ -5,6 +5,7 @@ using DropShield.Api.Inventory;
 using DropShield.Api.Models;
 using DropShield.Api.Options;
 using DropShield.Api.Origin;
+using DropShield.Api.Security;
 using DropShield.Api.State;
 using DropShield.Api.Traffic;
 using Microsoft.Extensions.Options;
@@ -17,6 +18,7 @@ builder.Services
     .ValidateOnStart();
 builder.Services.AddSingleton<IValidateOptions<DropShieldOptions>, DropShieldOptionsValidator>();
 builder.Services.AddSingleton<ClientIdentityProvider>();
+builder.Services.AddSingleton<InternalHashingKeyProvider>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<TrafficMetrics>();
 builder.Services.AddSingleton<RedisConnectionProvider>();
@@ -27,6 +29,7 @@ builder.Services.AddSingleton<AdmissionSessionProvider>();
 builder.Services.AddSingleton<AdmissionSigningKeyProvider>();
 builder.Services.AddSingleton<IAdmissionTokenService, AdmissionTokenService>();
 builder.Services.AddSingleton<AdmissionTokenCookieManager>();
+builder.Services.AddSingleton<ActionProofSigningKeyProvider>();
 builder.Services.AddSingleton<IActionTokenService, ActionTokenService>();
 builder.Services.AddSingleton<InMemoryReplayState>();
 builder.Services.AddSingleton<RedisReplayState>();
@@ -151,27 +154,27 @@ app.MapPost(
         forwarder.ForwardAsync(context, TrafficRoute.Checkout, cancellationToken));
 
 app.MapGet("/internal/inventory", async (IInventoryReservationState state, IOptions<DropShieldOptions> options, IHostEnvironment environment, CancellationToken cancellationToken) =>
-    !InternalMetricsAreAvailable(options.Value, environment)
+    !InternalDiagnosticsAreAvailable(options.Value, environment)
         ? Results.NotFound()
         : Results.Ok(await state.GetSnapshotAsync(options.Value.Admission.ProtectedProduct, cancellationToken)));
 
 app.MapPost(
     "/api/action-proofs/cart",
     (HttpContext context, AdmissionProofAuthorizer authorizer, IActionTokenService tokenService,
-        TrafficMetrics metrics, IOptions<DropShieldOptions> options) =>
-        IssueActionProof(context, ActionKind.Cart, authorizer, tokenService, metrics, options.Value));
+        TrafficMetrics metrics, IOptions<DropShieldOptions> options, CancellationToken cancellationToken) =>
+        IssueActionProofAsync(context, ActionKind.Cart, authorizer, tokenService, metrics, options.Value, cancellationToken));
 
 app.MapPost(
     "/api/action-proofs/checkout",
     (HttpContext context, AdmissionProofAuthorizer authorizer, IActionTokenService tokenService,
-        TrafficMetrics metrics, IOptions<DropShieldOptions> options) =>
-        IssueActionProof(context, ActionKind.Checkout, authorizer, tokenService, metrics, options.Value));
+        TrafficMetrics metrics, IOptions<DropShieldOptions> options, CancellationToken cancellationToken) =>
+        IssueActionProofAsync(context, ActionKind.Checkout, authorizer, tokenService, metrics, options.Value, cancellationToken));
 
 app.MapGet(
     "/internal/metrics",
     (TrafficMetrics metrics, IOptions<DropShieldOptions> options, IHostEnvironment environment) =>
     {
-        if (!InternalMetricsAreAvailable(options.Value, environment))
+        if (!InternalDiagnosticsAreAvailable(options.Value, environment))
         {
             return Results.NotFound();
         }
@@ -183,7 +186,7 @@ app.MapPost(
     "/internal/metrics/reset",
     (TrafficMetrics metrics, IOptions<DropShieldOptions> options, IHostEnvironment environment) =>
     {
-        if (!InternalMetricsAreAvailable(options.Value, environment))
+        if (!InternalDiagnosticsAreAvailable(options.Value, environment))
         {
             return Results.NotFound();
         }
@@ -194,26 +197,39 @@ app.MapPost(
 
 app.Run();
 
-static bool InternalMetricsAreAvailable(
+// Gates every /internal/* diagnostic route (metrics snapshot/reset, inventory snapshot).
+// One flag by design: these are all local-development diagnostics with the same trust level,
+// not independently sensitive surfaces that warrant separate configuration.
+static bool InternalDiagnosticsAreAvailable(
     DropShieldOptions options,
     IHostEnvironment environment) =>
     options.InternalMetrics.Enabled &&
     (environment.IsDevelopment() || environment.IsEnvironment("Testing"));
 
-static IResult IssueActionProof(
+static async Task<IResult> IssueActionProofAsync(
     HttpContext context,
     ActionKind action,
     AdmissionProofAuthorizer authorizer,
     IActionTokenService tokenService,
     TrafficMetrics metrics,
-    DropShieldOptions options)
+    DropShieldOptions options,
+    CancellationToken cancellationToken)
 {
     if (!options.ActionProofs.Enabled)
     {
         return Results.NotFound();
     }
 
-    var admission = authorizer.Authorize(context);
+    var admission = await authorizer.AuthorizeAsync(context, cancellationToken);
+    if (admission.IsStateUnavailable)
+    {
+        return Results.Json(
+            new GatewayErrorResponse(
+                "state_unavailable",
+                "Admission state is temporarily unavailable."),
+            statusCode: StatusCodes.Status503ServiceUnavailable);
+    }
+
     if (!admission.IsAuthorized)
     {
         return Results.Json(

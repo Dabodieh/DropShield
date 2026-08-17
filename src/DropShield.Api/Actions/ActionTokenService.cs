@@ -1,14 +1,14 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using DropShield.Api.Admission;
 using DropShield.Api.Options;
+using DropShield.Api.Security;
 using Microsoft.Extensions.Options;
 
 namespace DropShield.Api.Actions;
 
 public sealed class ActionTokenService(
-    AdmissionSigningKeyProvider signingKeyProvider,
+    ActionProofSigningKeyProvider signingKeyProvider,
     IOptions<DropShieldOptions> options,
     TimeProvider timeProvider) : IActionTokenService
 {
@@ -30,15 +30,15 @@ public sealed class ActionTokenService(
             1,
             key.KeyId,
             drop,
-            Base64UrlEncode(DeriveSessionBinding(key.Material, sessionId)),
+            Base64Url.Encode(DeriveSessionBinding(key.Material, sessionId)),
             GetActionName(action),
-            Base64UrlEncode(RandomNumberGenerator.GetBytes(32)),
+            Base64Url.Encode(RandomNumberGenerator.GetBytes(32)),
             issuedAt,
             checked(issuedAt + _options.LifetimeSeconds));
-        var payloadPart = Base64UrlEncode(JsonSerializer.SerializeToUtf8Bytes(payload, JsonOptions));
+        var payloadPart = Base64Url.Encode(JsonSerializer.SerializeToUtf8Bytes(payload, JsonOptions));
         var signingInput = $"{Version}.{payloadPart}";
         var signature = HMACSHA256.HashData(key.Material, Encoding.UTF8.GetBytes(signingInput));
-        return $"{signingInput}.{Base64UrlEncode(signature)}";
+        return $"{signingInput}.{Base64Url.Encode(signature)}";
     }
 
     public ActionTokenValidationResult Validate(
@@ -59,8 +59,8 @@ public sealed class ActionTokenService(
                 ActionTokenValidationFailure.UnsupportedVersion);
         }
 
-        if (!TryBase64UrlDecode(parts[1], out var payloadBytes) ||
-            !TryBase64UrlDecode(parts[2], out var actualSignature))
+        if (!Base64Url.TryDecode(parts[1], out var payloadBytes) ||
+            !Base64Url.TryDecode(parts[2], out var actualSignature))
         {
             return ActionTokenValidationResult.Invalid(ActionTokenValidationFailure.Malformed);
         }
@@ -113,8 +113,8 @@ public sealed class ActionTokenService(
             return ActionTokenValidationResult.Invalid(ActionTokenValidationFailure.WrongAction);
         }
 
-        if (!TryBase64UrlDecode(payload.Session, out var actualBinding) ||
-            !TryBase64UrlDecode(payload.Jti, out var actionId) || actionId.Length != 32)
+        if (!Base64Url.TryDecode(payload.Session, out var actualBinding) ||
+            !Base64Url.TryDecode(payload.Jti, out var actionId) || actionId.Length != 32)
         {
             return ActionTokenValidationResult.Invalid(ActionTokenValidationFailure.Malformed);
         }
@@ -142,44 +142,6 @@ public sealed class ActionTokenService(
 
     private static byte[] DeriveSessionBinding(byte[] key, string sessionId) =>
         HMACSHA256.HashData(key, Encoding.UTF8.GetBytes($"{SessionBindingPrefix}{sessionId}"));
-
-    private static string Base64UrlEncode(byte[] value) => Convert.ToBase64String(value)
-        .TrimEnd('=')
-        .Replace('+', '-')
-        .Replace('/', '_');
-
-    private static bool TryBase64UrlDecode(string value, out byte[] decoded)
-    {
-        decoded = [];
-        if (string.IsNullOrEmpty(value) || value.Any(character =>
-                !char.IsAsciiLetterOrDigit(character) && character is not '-' and not '_'))
-        {
-            return false;
-        }
-
-        try
-        {
-            var base64 = value.Replace('-', '+').Replace('_', '/');
-            base64 = (base64.Length % 4) switch
-            {
-                0 => base64,
-                2 => base64 + "==",
-                3 => base64 + "=",
-                _ => string.Empty,
-            };
-            if (base64.Length == 0)
-            {
-                return false;
-            }
-
-            decoded = Convert.FromBase64String(base64);
-            return true;
-        }
-        catch (FormatException)
-        {
-            return false;
-        }
-    }
 
     private sealed record ActionTokenPayload(
         int V,

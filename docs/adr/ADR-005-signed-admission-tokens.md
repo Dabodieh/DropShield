@@ -18,7 +18,7 @@ Require a shared Base64 key of at least 32 bytes in Redis and non-controlled env
 ## Consequences
 
 - Tampered, expired, wrong-drop, and wrong-session proof fails without a Redis token lookup.
-- A token cannot by itself outlive or renew active admission capacity; Redis remains relevant for state in multi-instance deployments.
+- A token cannot by itself outlive or renew active admission capacity: every protected path that consumes a token (the stock route, and cart/checkout/action-proof issuance) re-evaluates live server-side admission state before proceeding, not only signature and expiry. Redis remains relevant for that state in multi-instance deployments.
 - Same-key instances can verify each other's tokens.
 - Browser-held proof remains vulnerable when an attacker steals the browser's whole live session.
 - Tokens are deliberately reusable during their short validity period. Phase 8 replay controls, reservation, and transaction policy remain out of scope.

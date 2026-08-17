@@ -20,6 +20,8 @@ public sealed class DropShieldOptions
 
     public RedisStateOptions Redis { get; set; } = new();
 
+    public AdmissionOptions Admission { get; set; } = new();
+
     public TrafficPoliciesOptions Policies { get; set; } = new();
 }
 
@@ -54,6 +56,25 @@ public sealed class RedisStateOptions
     public int ConnectTimeoutMilliseconds { get; set; } = 1_000;
 
     public int OperationTimeoutMilliseconds { get; set; } = 1_000;
+}
+
+public sealed class AdmissionOptions
+{
+    public bool Enabled { get; set; }
+
+    public string ProtectedProduct { get; set; } = "pokemon-etb";
+
+    public int MaximumActiveSessions { get; set; } = 200;
+
+    public int AdmissionBatchSize { get; set; } = 20;
+
+    public int MaximumWaitingSessions { get; set; } = 2_000;
+
+    public int SessionTtlSeconds { get; set; } = 300;
+
+    public int WaitingTtlSeconds { get; set; } = 600;
+
+    public int RetryAfterSeconds { get; set; } = 5;
 }
 
 public sealed class TrafficPoliciesOptions

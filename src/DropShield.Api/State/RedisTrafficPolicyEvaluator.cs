@@ -1,3 +1,4 @@
+using DropShield.Api.Admission;
 using DropShield.Api.Options;
 using DropShield.Api.Traffic;
 using Microsoft.Extensions.Options;
@@ -59,6 +60,11 @@ public sealed class RedisTrafficPolicyEvaluator(
         if (!clientDecision.IsAllowed)
         {
             return clientDecision;
+        }
+
+        if (AdmissionPolicy.AppliesTo(context.Request, _options))
+        {
+            return RedisTrafficPolicyDecision.Allowed;
         }
 
         var aggregateLease = await state.TryAcquireAsync(

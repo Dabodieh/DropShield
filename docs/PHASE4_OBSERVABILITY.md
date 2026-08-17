@@ -37,6 +37,7 @@ The response has this stable top-level shape:
   "uptimeSeconds": 42,
   "traffic": {},
   "rateLimitReasons": {},
+  "admission": {},
   "statusCodes": {},
   "latencyMilliseconds": {},
   "recentRates": {},
@@ -44,6 +45,8 @@ The response has this stable top-level shape:
   "routes": {}
 }
 ```
+
+Phase 6 adds fixed `admission` request-decision counters: `admitted`, `waiting`, and `queueFull`. These are per-instance operational observations, not distributed queue depth or unique-session counts. They contain no session identifiers or queue positions.
 
 `traffic`, `protectedStock`, and each route's `traffic` object expose:
 
@@ -57,7 +60,7 @@ The response has this stable top-level shape:
 - `rejectionPercentage`
 - `originTrafficReductionPercentage`
 
-Origin traffic reduction is the percentage of recognized incoming commerce requests rejected before forwarding. A forwarded request that later fails at the origin remains forwarded and is also counted as an upstream failure.
+Origin traffic reduction is the percentage of recognized incoming commerce requests not forwarded. From Phase 6 this includes waiting and bounded-overflow decisions as well as rate limits and state failures. `rejectionPercentage` remains specifically the HTTP 429 rate-limit share. A forwarded request that later fails at the origin remains forwarded and is also counted as an upstream failure.
 
 `protectedStock` is a fixed aggregate for requests whose product ID is in `DropShield:ProtectedProducts`. It does not create a label for each SKU.
 

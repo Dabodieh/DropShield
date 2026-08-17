@@ -12,7 +12,7 @@ client / load balancer ──┼─ DropShield B ─┼→ shared Redis windows 
                          └─ DropShield C ─┘
 ```
 
-This phase adds shared rate-window state, not a new customer-facing protection feature.
+This phase added shared rate-window state, not a customer-facing protection feature. Phase 6 subsequently reuses the same provider selection and Redis connection for bounded admission state.
 
 ## Provider selection
 

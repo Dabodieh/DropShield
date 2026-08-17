@@ -1,3 +1,4 @@
+using DropShield.Api.Admission;
 using DropShield.Api.Models;
 using DropShield.Api.Options;
 using DropShield.Api.Origin;
@@ -19,6 +20,16 @@ builder.Services.AddSingleton<RedisConnectionProvider>();
 builder.Services.AddSingleton<RedisTrafficKeyBuilder>();
 builder.Services.AddSingleton<IDistributedTrafficState, RedisTrafficState>();
 builder.Services.AddSingleton<RedisTrafficPolicyEvaluator>();
+builder.Services.AddSingleton<AdmissionSessionProvider>();
+builder.Services.AddSingleton<InMemoryAdmissionState>();
+builder.Services.AddSingleton<RedisAdmissionKeyBuilder>();
+builder.Services.AddSingleton<RedisAdmissionState>();
+builder.Services.AddSingleton<IAdmissionState>(services =>
+    services.GetRequiredService<IOptions<DropShieldOptions>>().Value.StateProvider ==
+    TrafficStateProvider.Redis
+        ? services.GetRequiredService<RedisAdmissionState>()
+        : services.GetRequiredService<InMemoryAdmissionState>());
+builder.Services.AddSingleton<AdmissionEvaluator>();
 builder.Services.AddTransient<DemoStoreForwarder>();
 builder.Services.AddHttpClient<IDemoStoreClient, DemoStoreClient>((services, client) =>
 {
@@ -47,6 +58,7 @@ else
 {
     app.UseRateLimiter();
 }
+app.UseMiddleware<AdmissionControlMiddleware>();
 
 app.MapGet(
     "/health",

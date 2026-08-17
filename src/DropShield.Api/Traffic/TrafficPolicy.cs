@@ -1,4 +1,5 @@
 using System.Threading.RateLimiting;
+using DropShield.Api.Admission;
 using DropShield.Api.Options;
 using Microsoft.AspNetCore.RateLimiting;
 
@@ -97,6 +98,7 @@ public static class TrafficPolicy
         var stockPolicy = options.Policies.Stock;
         if (!options.Enabled ||
             !stockPolicy.Enabled ||
+            AdmissionPolicy.AppliesTo(context.Request, options) ||
             !TrafficRouteClassifier.IsProtectedStockRequest(
                 context.Request,
                 options.ProtectedProducts))

@@ -113,6 +113,56 @@ public sealed class DropShieldOptionsValidationTests
         Assert.False(result.Failed);
     }
 
+    [Fact]
+    public void Admission_RequiresConfiguredProtectedProduct()
+    {
+        var options = ValidOptions();
+        options.Admission.Enabled = true;
+        options.Admission.ProtectedProduct = "not-protected";
+
+        var result = new DropShieldOptionsValidator(new TestHostEnvironment("Testing"))
+            .Validate(null, options);
+
+        Assert.True(result.Failed);
+        Assert.Contains(
+            result.Failures,
+            failure => failure.Contains("Admission:ProtectedProduct", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Admission_RejectsBatchLargerThanActiveCapacity()
+    {
+        var options = ValidOptions();
+        options.Admission.Enabled = true;
+        options.Admission.MaximumActiveSessions = 10;
+        options.Admission.AdmissionBatchSize = 11;
+
+        var result = new DropShieldOptionsValidator(new TestHostEnvironment("Testing"))
+            .Validate(null, options);
+
+        Assert.True(result.Failed);
+        Assert.Contains(
+            result.Failures,
+            failure => failure.Contains("AdmissionBatchSize", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Admission_RejectsTtlShorterThanRetryInterval()
+    {
+        var options = ValidOptions();
+        options.Admission.Enabled = true;
+        options.Admission.SessionTtlSeconds = 4;
+        options.Admission.RetryAfterSeconds = 5;
+
+        var result = new DropShieldOptionsValidator(new TestHostEnvironment("Testing"))
+            .Validate(null, options);
+
+        Assert.True(result.Failed);
+        Assert.Contains(
+            result.Failures,
+            failure => failure.Contains("shorter than the retry", StringComparison.Ordinal));
+    }
+
     private static DropShieldOptions ValidOptions() => new()
     {
         OriginBaseUrl = "http://localhost:5058",
@@ -124,6 +174,17 @@ public sealed class DropShieldOptionsValidationTests
             HeaderName = "X-DropShield-Test-Client",
         },
         InternalMetrics = new InternalMetricsOptions { Enabled = true },
+        Admission = new AdmissionOptions
+        {
+            Enabled = false,
+            ProtectedProduct = "pokemon-etb",
+            MaximumActiveSessions = 200,
+            AdmissionBatchSize = 20,
+            MaximumWaitingSessions = 2_000,
+            SessionTtlSeconds = 300,
+            WaitingTtlSeconds = 600,
+            RetryAfterSeconds = 5,
+        },
         Policies = new TrafficPoliciesOptions
         {
             Stock = new StockPolicyOptions

@@ -1,4 +1,5 @@
 using DropShield.Api;
+using DropShield.Api.Admission;
 using DropShield.Api.Origin;
 using DropShield.Api.State;
 using Microsoft.AspNetCore.Hosting;
@@ -12,7 +13,8 @@ namespace DropShield.Tests.Support;
 internal sealed class DropShieldApiFactory(
     IReadOnlyDictionary<string, string?>? overrides = null,
     string environment = "Testing",
-    IDistributedTrafficState? distributedState = null)
+    IDistributedTrafficState? distributedState = null,
+    IAdmissionState? admissionState = null)
     : WebApplicationFactory<ApiAssemblyMarker>
 {
     private readonly IReadOnlyDictionary<string, string?> _overrides = overrides ??
@@ -37,6 +39,12 @@ internal sealed class DropShieldApiFactory(
                 services.RemoveAll<IDistributedTrafficState>();
                 services.AddSingleton(distributedState);
             }
+
+            if (admissionState is not null)
+            {
+                services.RemoveAll<IAdmissionState>();
+                services.AddSingleton(admissionState);
+            }
         });
     }
 
@@ -50,6 +58,14 @@ internal sealed class DropShieldApiFactory(
         ["DropShield:SyntheticClientIdentity:Enabled"] = "true",
         ["DropShield:SyntheticClientIdentity:HeaderName"] = "X-DropShield-Test-Client",
         ["DropShield:InternalMetrics:Enabled"] = "true",
+        ["DropShield:Admission:Enabled"] = "false",
+        ["DropShield:Admission:ProtectedProduct"] = "pokemon-etb",
+        ["DropShield:Admission:MaximumActiveSessions"] = "200",
+        ["DropShield:Admission:AdmissionBatchSize"] = "20",
+        ["DropShield:Admission:MaximumWaitingSessions"] = "2000",
+        ["DropShield:Admission:SessionTtlSeconds"] = "300",
+        ["DropShield:Admission:WaitingTtlSeconds"] = "600",
+        ["DropShield:Admission:RetryAfterSeconds"] = "5",
         ["DropShield:Policies:Stock:Enabled"] = "true",
         ["DropShield:Policies:Stock:ClientPermitLimit"] = "2",
         ["DropShield:Policies:Stock:ClientWindowSeconds"] = "60",

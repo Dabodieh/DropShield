@@ -79,9 +79,65 @@ public sealed partial class DropShieldOptionsValidator(IHostEnvironment environm
             ValidateRedis(options.Redis, failures);
         }
 
+        ValidateAdmission(options, failures);
+
         return failures.Count == 0
             ? ValidateOptionsResult.Success
             : ValidateOptionsResult.Fail(failures);
+    }
+
+    private static void ValidateAdmission(
+        DropShieldOptions options,
+        ICollection<string> failures)
+    {
+        var admission = options.Admission;
+        if (!admission.Enabled)
+        {
+            return;
+        }
+
+        if (!AdmissionProductPattern().IsMatch(admission.ProtectedProduct) ||
+            !options.ProtectedProducts.Contains(
+                admission.ProtectedProduct,
+                StringComparer.OrdinalIgnoreCase))
+        {
+            failures.Add(
+                "DropShield:Admission:ProtectedProduct must be a bounded configured protected product ID.");
+        }
+
+        if (admission.MaximumActiveSessions is < 1 or > 100_000)
+        {
+            failures.Add(
+                "DropShield:Admission:MaximumActiveSessions must be between 1 and 100000.");
+        }
+
+        if (admission.AdmissionBatchSize < 1 ||
+            admission.AdmissionBatchSize > admission.MaximumActiveSessions)
+        {
+            failures.Add(
+                "DropShield:Admission:AdmissionBatchSize must be between 1 and MaximumActiveSessions.");
+        }
+
+        if (admission.MaximumWaitingSessions is < 1 or > 1_000_000)
+        {
+            failures.Add(
+                "DropShield:Admission:MaximumWaitingSessions must be between 1 and 1000000.");
+        }
+
+        if (admission.SessionTtlSeconds is < 1 or > 86_400 ||
+            admission.WaitingTtlSeconds is < 1 or > 86_400 ||
+            admission.RetryAfterSeconds is < 1 or > 300)
+        {
+            failures.Add(
+                "DropShield admission TTLs must be between 1 and 86400 seconds and retry interval between 1 and 300 seconds.");
+        }
+
+        if (admission.SessionTtlSeconds < admission.RetryAfterSeconds ||
+            admission.WaitingTtlSeconds < admission.RetryAfterSeconds)
+        {
+            failures.Add(
+                "DropShield admission session and waiting TTLs must not be shorter than the retry interval.");
+        }
     }
 
     private static void ValidateRedis(
@@ -175,4 +231,7 @@ public sealed partial class DropShieldOptionsValidator(IHostEnvironment environm
 
     [GeneratedRegex("^[a-z0-9](?:[a-z0-9:-]{0,62}[a-z0-9])?$", RegexOptions.CultureInvariant)]
     private static partial Regex RedisKeyPrefixPattern();
+
+    [GeneratedRegex("^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$", RegexOptions.CultureInvariant)]
+    private static partial Regex AdmissionProductPattern();
 }

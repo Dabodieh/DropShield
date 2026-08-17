@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using DropShield.Api.Admission;
 
 namespace DropShield.Api.Traffic;
 
@@ -22,6 +23,9 @@ public sealed class TrafficMetrics
     private long _aggregateRejections;
     private long _protectedStockChainedRejections;
     private long _unattributedRejections;
+    private long _admissionAdmitted;
+    private long _admissionWaiting;
+    private long _admissionQueueFull;
 
     public TrafficMetrics(TimeProvider timeProvider)
     {
@@ -116,6 +120,24 @@ public sealed class TrafficMetrics
         }
     }
 
+    public void RecordAdmission(AdmissionStatus status)
+    {
+        switch (status)
+        {
+            case AdmissionStatus.Admitted:
+                Interlocked.Increment(ref _admissionAdmitted);
+                break;
+            case AdmissionStatus.Waiting:
+                Interlocked.Increment(ref _admissionWaiting);
+                break;
+            case AdmissionStatus.Full:
+                Interlocked.Increment(ref _admissionQueueFull);
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(status), status, null);
+        }
+    }
+
     public void RecordOriginLatency(TimeSpan duration) =>
         _originLatency.Record(duration);
 
@@ -156,6 +178,10 @@ public sealed class TrafficMetrics
                 Interlocked.Read(ref _aggregateRejections),
                 Interlocked.Read(ref _protectedStockChainedRejections),
                 Interlocked.Read(ref _unattributedRejections)),
+            new AdmissionMetricsSnapshot(
+                Interlocked.Read(ref _admissionAdmitted),
+                Interlocked.Read(ref _admissionWaiting),
+                Interlocked.Read(ref _admissionQueueFull)),
             _totalStatusCodes.GetSnapshot(),
             new LatencyMetricsSnapshot(
                 _endToEndLatency.GetSnapshot(),
@@ -186,6 +212,9 @@ public sealed class TrafficMetrics
         Interlocked.Exchange(ref _aggregateRejections, 0);
         Interlocked.Exchange(ref _protectedStockChainedRejections, 0);
         Interlocked.Exchange(ref _unattributedRejections, 0);
+        Interlocked.Exchange(ref _admissionAdmitted, 0);
+        Interlocked.Exchange(ref _admissionWaiting, 0);
+        Interlocked.Exchange(ref _admissionQueueFull, 0);
         Interlocked.Exchange(
             ref _collectionStartedAtUtcTicks,
             _timeProvider.GetUtcNow().UtcTicks);
@@ -243,7 +272,7 @@ public sealed class TrafficMetrics
                 Interlocked.Read(ref _stateFailures),
                 Percentage(forwarded, incoming),
                 Percentage(rateLimited, incoming),
-                Percentage(rateLimited, incoming));
+                Percentage(Math.Max(0, incoming - forwarded), incoming));
         }
 
         public void Reset()
@@ -334,6 +363,7 @@ public sealed record TrafficMetricsSnapshot(
     long UptimeSeconds,
     TrafficCountersSnapshot Traffic,
     RateLimitReasonSnapshot RateLimitReasons,
+    AdmissionMetricsSnapshot Admission,
     StatusCodeSnapshot StatusCodes,
     LatencyMetricsSnapshot LatencyMilliseconds,
     RollingRateSnapshot RecentRates,
@@ -356,6 +386,11 @@ public sealed record RateLimitReasonSnapshot(
     long Aggregate,
     long ProtectedStockChained,
     long Unattributed);
+
+public sealed record AdmissionMetricsSnapshot(
+    long Admitted,
+    long Waiting,
+    long QueueFull);
 
 public sealed record StatusCodeSnapshot(
     long Success2xx,

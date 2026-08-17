@@ -15,11 +15,11 @@ This project must not be used to send abusive traffic to third-party websites. P
 
 ## Current phase
 
-**Phase 5 — Distributed State / Redis**
+**Phase 6 — Virtual Waiting Room / Admission Control**
 
-The completed Phase 1–4 paths remain reproducible. Phase 5 adds optional shared Redis traffic-policy state for multi-instance deployments while retaining the existing Redis-free InMemory mode.
+The completed Phase 1–5 paths remain reproducible. Phase 6 adds bounded admission state so eligible sessions can wait outside the origin and be progressively admitted. InMemory remains available for one-process local development; Redis mode coordinates admission across instances.
 
-Redis mode shares protected-stock aggregate and per-client limits plus cart and checkout client limits. Bot classification, waiting rooms, queueing, signed admission, inventory reservation, adaptive admission, Adobe Commerce integration, and edge-provider integration have not been implemented.
+Per-client rate limits remain the abuse boundary. Waiting clients receive JSON HTTP 202 rather than an exact queue position, while admitted clients reach the synthetic origin. Signed admission tokens, cart replay protection, inventory reservation, bot classification, adaptive admission, Adobe Commerce integration, and edge-provider integration have not been implemented.
 
 ## Architecture direction
 
@@ -42,7 +42,7 @@ See:
 
 ## Projects
 
-- `src/DropShield.Api` — protected local entry point with explicit forwarding, selectable InMemory/Redis policy state, and per-instance observability.
+- `src/DropShield.Api` — protected local entry point with explicit forwarding, selectable InMemory/Redis policy and admission state, and per-instance observability.
 - `src/DropShield.DemoStore` — synthetic ecommerce backend with health, product, stock, cart, and checkout endpoints.
 - `tests/DropShield.Tests` — xUnit integration tests for both APIs.
 - `load-tests` — localhost-only k6 smoke, customer, flash-crowd, aggressive-polling, and mixed-drop scenarios.
@@ -165,6 +165,20 @@ dotnet run --project src/DropShield.Api
 ```
 
 Redis unavailability is fail-closed: protected traffic receives HTTP 503 and is not forwarded or silently placed on a weaker local limiter. See [`docs/PHASE5_DISTRIBUTED_STATE.md`](docs/PHASE5_DISTRIBUTED_STATE.md) and [ADR-003](docs/adr/ADR-003-distributed-state-provider.md).
+
+## Phase 6 — Waiting-room behavior
+
+Admission is enabled for `pokemon-etb` in the committed PoC configuration. A protected-stock request first passes the per-client abuse limit. The first configured batch of sessions is admitted; eligible excess sessions receive:
+
+```json
+{
+  "status": "waiting",
+  "drop": "pokemon-etb",
+  "retryAfterSeconds": 5
+}
+```
+
+The response is HTTP 202 with `Retry-After`. Poll the same protected-stock URL using the returned `DropShield.Session` cookie. No exact queue position is promised. See [`docs/PHASE6_ADMISSION_CONTROL.md`](docs/PHASE6_ADMISSION_CONTROL.md) and [ADR-004](docs/adr/ADR-004-admission-control.md).
 
 ## Docker
 

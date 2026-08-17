@@ -22,6 +22,8 @@ public sealed class DropShieldOptions
 
     public AdmissionOptions Admission { get; set; } = new();
 
+    public AdmissionTokenOptions AdmissionTokens { get; set; } = new();
+
     public TrafficPoliciesOptions Policies { get; set; } = new();
 }
 
@@ -75,6 +77,19 @@ public sealed class AdmissionOptions
     public int WaitingTtlSeconds { get; set; } = 600;
 
     public int RetryAfterSeconds { get; set; } = 5;
+}
+
+public sealed class AdmissionTokenOptions
+{
+    public bool Enabled { get; set; }
+
+    public string CookieName { get; set; } = "DropShield.Admission";
+
+    public int LifetimeSeconds { get; set; } = 60;
+
+    public string KeyId { get; set; } = "primary";
+
+    public string SigningKey { get; set; } = string.Empty;
 }
 
 public sealed class TrafficPoliciesOptions

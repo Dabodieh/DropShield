@@ -21,6 +21,9 @@ builder.Services.AddSingleton<RedisTrafficKeyBuilder>();
 builder.Services.AddSingleton<IDistributedTrafficState, RedisTrafficState>();
 builder.Services.AddSingleton<RedisTrafficPolicyEvaluator>();
 builder.Services.AddSingleton<AdmissionSessionProvider>();
+builder.Services.AddSingleton<AdmissionSigningKeyProvider>();
+builder.Services.AddSingleton<IAdmissionTokenService, AdmissionTokenService>();
+builder.Services.AddSingleton<AdmissionTokenCookieManager>();
 builder.Services.AddSingleton<InMemoryAdmissionState>();
 builder.Services.AddSingleton<RedisAdmissionKeyBuilder>();
 builder.Services.AddSingleton<RedisAdmissionState>();
@@ -58,6 +61,7 @@ else
 {
     app.UseRateLimiter();
 }
+app.UseMiddleware<AdmissionTokenMiddleware>();
 app.UseMiddleware<AdmissionControlMiddleware>();
 
 app.MapGet(

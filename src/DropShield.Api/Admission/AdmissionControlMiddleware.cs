@@ -11,6 +11,9 @@ public sealed class AdmissionControlMiddleware(RequestDelegate next)
     public async Task InvokeAsync(
         HttpContext context,
         AdmissionEvaluator evaluator,
+        AdmissionSessionProvider sessionProvider,
+        IAdmissionTokenService tokenService,
+        AdmissionTokenCookieManager tokenCookies,
         TrafficMetrics metrics,
         IOptions<DropShieldOptions> options,
         ILogger<AdmissionControlMiddleware> logger)
@@ -22,9 +25,10 @@ public sealed class AdmissionControlMiddleware(RequestDelegate next)
         }
 
         AdmissionDecision decision;
+        var sessionId = sessionProvider.GetOrCreate(context);
         try
         {
-            decision = await evaluator.EvaluateAsync(context, context.RequestAborted);
+            decision = await evaluator.EvaluateAsync(sessionId, context.RequestAborted);
         }
         catch (DistributedTrafficStateUnavailableException exception)
         {
@@ -45,6 +49,16 @@ public sealed class AdmissionControlMiddleware(RequestDelegate next)
         switch (decision.Status)
         {
             case AdmissionStatus.Admitted:
+                if (options.Value.AdmissionTokens.Enabled &&
+                    !context.Items.ContainsKey(AdmissionTokenMiddleware.ValidatedTokenItemKey))
+                {
+                    var token = tokenService.Issue(
+                        options.Value.Admission.ProtectedProduct,
+                        sessionId);
+                    tokenCookies.Issue(context, token);
+                    metrics.RecordAdmissionTokenIssued();
+                }
+
                 await next(context);
                 return;
             case AdmissionStatus.Waiting:

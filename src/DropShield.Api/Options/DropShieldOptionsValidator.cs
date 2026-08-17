@@ -1,4 +1,5 @@
 using System.Net;
+using System.Security.Cryptography;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Options;
 using StackExchange.Redis;
@@ -80,6 +81,7 @@ public sealed partial class DropShieldOptionsValidator(IHostEnvironment environm
         }
 
         ValidateAdmission(options, failures);
+        ValidateAdmissionTokens(options, isControlledEnvironment, failures);
 
         return failures.Count == 0
             ? ValidateOptionsResult.Success
@@ -137,6 +139,70 @@ public sealed partial class DropShieldOptionsValidator(IHostEnvironment environm
         {
             failures.Add(
                 "DropShield admission session and waiting TTLs must not be shorter than the retry interval.");
+        }
+    }
+
+    private static void ValidateAdmissionTokens(
+        DropShieldOptions options,
+        bool isControlledEnvironment,
+        ICollection<string> failures)
+    {
+        var tokens = options.AdmissionTokens;
+        if (!tokens.Enabled)
+        {
+            return;
+        }
+
+        if (!options.Admission.Enabled)
+        {
+            failures.Add("DropShield:AdmissionTokens requires enabled admission control.");
+        }
+
+        if (!CookieNamePattern().IsMatch(tokens.CookieName))
+        {
+            failures.Add("DropShield:AdmissionTokens:CookieName is invalid.");
+        }
+
+        if (tokens.LifetimeSeconds is < 1 or > 3_600 ||
+            (options.Admission.Enabled && tokens.LifetimeSeconds > options.Admission.SessionTtlSeconds))
+        {
+            failures.Add(
+                "DropShield:AdmissionTokens:LifetimeSeconds must be between 1 and 3600 and no longer than the admission session TTL.");
+        }
+
+        if (!KeyIdPattern().IsMatch(tokens.KeyId))
+        {
+            failures.Add("DropShield:AdmissionTokens:KeyId is invalid.");
+        }
+
+        var requiresExplicitKey = options.StateProvider == TrafficStateProvider.Redis ||
+                                  !isControlledEnvironment;
+        if (string.IsNullOrWhiteSpace(tokens.SigningKey))
+        {
+            if (requiresExplicitKey)
+            {
+                failures.Add(
+                    "DropShield:AdmissionTokens:SigningKey is required in Redis, Production, or other non-controlled environments.");
+            }
+
+            return;
+        }
+
+        try
+        {
+            var key = Convert.FromBase64String(tokens.SigningKey);
+            if (key.Length < 32)
+            {
+                failures.Add(
+                    "DropShield:AdmissionTokens:SigningKey must be Base64-encoded and contain at least 32 random bytes.");
+            }
+
+            CryptographicOperations.ZeroMemory(key);
+        }
+        catch (FormatException)
+        {
+            failures.Add(
+                "DropShield:AdmissionTokens:SigningKey must be Base64-encoded and contain at least 32 random bytes.");
         }
     }
 
@@ -234,4 +300,10 @@ public sealed partial class DropShieldOptionsValidator(IHostEnvironment environm
 
     [GeneratedRegex("^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$", RegexOptions.CultureInvariant)]
     private static partial Regex AdmissionProductPattern();
+
+    [GeneratedRegex("^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$", RegexOptions.CultureInvariant)]
+    private static partial Regex CookieNamePattern();
+
+    [GeneratedRegex("^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$", RegexOptions.CultureInvariant)]
+    private static partial Regex KeyIdPattern();
 }

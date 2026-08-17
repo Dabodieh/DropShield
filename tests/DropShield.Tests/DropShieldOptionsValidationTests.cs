@@ -163,6 +163,56 @@ public sealed class DropShieldOptionsValidationTests
             failure => failure.Contains("shorter than the retry", StringComparison.Ordinal));
     }
 
+    [Theory]
+    [InlineData("Production", "InMemory", "")]
+    [InlineData("Testing", "Redis", "")]
+    [InlineData("Production", "InMemory", "c2VjcmV0")]
+    public void AdmissionTokens_RequireStrongExplicitKeyOutsideLocalInMemory(
+        string environment,
+        string stateProvider,
+        string signingKey)
+    {
+        var options = ValidOptions();
+        options.Admission.Enabled = true;
+        options.AdmissionTokens = new AdmissionTokenOptions
+        {
+            Enabled = true,
+            SigningKey = signingKey,
+            KeyId = "primary",
+            LifetimeSeconds = 60,
+        };
+        options.StateProvider = Enum.Parse<TrafficStateProvider>(stateProvider);
+        if (options.StateProvider == TrafficStateProvider.Redis)
+        {
+            options.Redis.IdentityHashKey = new string('x', 32);
+        }
+
+        var result = new DropShieldOptionsValidator(new TestHostEnvironment(environment))
+            .Validate(null, options);
+
+        Assert.True(result.Failed);
+        Assert.Contains(result.Failures, failure => failure.Contains("AdmissionTokens:SigningKey", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void AdmissionTokens_AllowEphemeralKeyOnlyInTestingInMemoryMode()
+    {
+        var options = ValidOptions();
+        options.Admission.Enabled = true;
+        options.AdmissionTokens = new AdmissionTokenOptions
+        {
+            Enabled = true,
+            SigningKey = string.Empty,
+            KeyId = "primary",
+            LifetimeSeconds = 60,
+        };
+
+        var result = new DropShieldOptionsValidator(new TestHostEnvironment("Testing"))
+            .Validate(null, options);
+
+        Assert.False(result.Failed);
+    }
+
     private static DropShieldOptions ValidOptions() => new()
     {
         OriginBaseUrl = "http://localhost:5058",

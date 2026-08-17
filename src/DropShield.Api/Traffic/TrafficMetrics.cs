@@ -26,6 +26,10 @@ public sealed class TrafficMetrics
     private long _admissionAdmitted;
     private long _admissionWaiting;
     private long _admissionQueueFull;
+    private long _admissionTokensIssued;
+    private long _admissionTokenValidations;
+    private long _admissionTokenValidationFailures;
+    private long _admissionTokenExpired;
 
     public TrafficMetrics(TimeProvider timeProvider)
     {
@@ -138,6 +142,21 @@ public sealed class TrafficMetrics
         }
     }
 
+    public void RecordAdmissionTokenIssued() => Interlocked.Increment(ref _admissionTokensIssued);
+
+    public void RecordAdmissionTokenValidation(AdmissionTokenValidationResult result)
+    {
+        Interlocked.Increment(ref _admissionTokenValidations);
+        if (!result.IsValid)
+        {
+            Interlocked.Increment(ref _admissionTokenValidationFailures);
+            if (result.Failure == AdmissionTokenValidationFailure.Expired)
+            {
+                Interlocked.Increment(ref _admissionTokenExpired);
+            }
+        }
+    }
+
     public void RecordOriginLatency(TimeSpan duration) =>
         _originLatency.Record(duration);
 
@@ -182,6 +201,11 @@ public sealed class TrafficMetrics
                 Interlocked.Read(ref _admissionAdmitted),
                 Interlocked.Read(ref _admissionWaiting),
                 Interlocked.Read(ref _admissionQueueFull)),
+            new AdmissionTokenMetricsSnapshot(
+                Interlocked.Read(ref _admissionTokensIssued),
+                Interlocked.Read(ref _admissionTokenValidations),
+                Interlocked.Read(ref _admissionTokenValidationFailures),
+                Interlocked.Read(ref _admissionTokenExpired)),
             _totalStatusCodes.GetSnapshot(),
             new LatencyMetricsSnapshot(
                 _endToEndLatency.GetSnapshot(),
@@ -215,6 +239,10 @@ public sealed class TrafficMetrics
         Interlocked.Exchange(ref _admissionAdmitted, 0);
         Interlocked.Exchange(ref _admissionWaiting, 0);
         Interlocked.Exchange(ref _admissionQueueFull, 0);
+        Interlocked.Exchange(ref _admissionTokensIssued, 0);
+        Interlocked.Exchange(ref _admissionTokenValidations, 0);
+        Interlocked.Exchange(ref _admissionTokenValidationFailures, 0);
+        Interlocked.Exchange(ref _admissionTokenExpired, 0);
         Interlocked.Exchange(
             ref _collectionStartedAtUtcTicks,
             _timeProvider.GetUtcNow().UtcTicks);
@@ -364,6 +392,7 @@ public sealed record TrafficMetricsSnapshot(
     TrafficCountersSnapshot Traffic,
     RateLimitReasonSnapshot RateLimitReasons,
     AdmissionMetricsSnapshot Admission,
+    AdmissionTokenMetricsSnapshot AdmissionTokens,
     StatusCodeSnapshot StatusCodes,
     LatencyMetricsSnapshot LatencyMilliseconds,
     RollingRateSnapshot RecentRates,
@@ -391,6 +420,12 @@ public sealed record AdmissionMetricsSnapshot(
     long Admitted,
     long Waiting,
     long QueueFull);
+
+public sealed record AdmissionTokenMetricsSnapshot(
+    long Issued,
+    long Validations,
+    long ValidationFailures,
+    long Expired);
 
 public sealed record StatusCodeSnapshot(
     long Success2xx,

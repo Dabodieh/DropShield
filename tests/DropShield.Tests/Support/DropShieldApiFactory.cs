@@ -14,7 +14,8 @@ internal sealed class DropShieldApiFactory(
     IReadOnlyDictionary<string, string?>? overrides = null,
     string environment = "Testing",
     IDistributedTrafficState? distributedState = null,
-    IAdmissionState? admissionState = null)
+    IAdmissionState? admissionState = null,
+    TimeProvider? timeProvider = null)
     : WebApplicationFactory<ApiAssemblyMarker>
 {
     private readonly IReadOnlyDictionary<string, string?> _overrides = overrides ??
@@ -45,6 +46,12 @@ internal sealed class DropShieldApiFactory(
                 services.RemoveAll<IAdmissionState>();
                 services.AddSingleton(admissionState);
             }
+
+            if (timeProvider is not null)
+            {
+                services.RemoveAll<TimeProvider>();
+                services.AddSingleton(timeProvider);
+            }
         });
     }
 
@@ -66,6 +73,11 @@ internal sealed class DropShieldApiFactory(
         ["DropShield:Admission:SessionTtlSeconds"] = "300",
         ["DropShield:Admission:WaitingTtlSeconds"] = "600",
         ["DropShield:Admission:RetryAfterSeconds"] = "5",
+        ["DropShield:AdmissionTokens:Enabled"] = "false",
+        ["DropShield:AdmissionTokens:CookieName"] = "DropShield.Admission",
+        ["DropShield:AdmissionTokens:LifetimeSeconds"] = "60",
+        ["DropShield:AdmissionTokens:KeyId"] = "primary",
+        ["DropShield:AdmissionTokens:SigningKey"] = "",
         ["DropShield:Policies:Stock:Enabled"] = "true",
         ["DropShield:Policies:Stock:ClientPermitLimit"] = "2",
         ["DropShield:Policies:Stock:ClientWindowSeconds"] = "60",

@@ -8,11 +8,17 @@ namespace DropShield.Api.Admission;
 public sealed partial class AdmissionSessionProvider(IOptions<DropShieldOptions> options)
 {
     public const string CookieName = "DropShield.Session";
+    private const string SessionItemKey = "DropShield.Admission.Session";
 
     private readonly AdmissionOptions _options = options.Value.Admission;
 
     public string GetOrCreate(HttpContext context)
     {
+        if (context.Items.TryGetValue(SessionItemKey, out var existing) && existing is string session)
+        {
+            return session;
+        }
+
         var sessionId = context.Request.Cookies.TryGetValue(CookieName, out var candidate) &&
                         candidate is not null &&
                         SessionIdPattern().IsMatch(candidate)
@@ -33,6 +39,8 @@ public sealed partial class AdmissionSessionProvider(IOptions<DropShieldOptions>
                     _options.SessionTtlSeconds,
                     _options.WaitingTtlSeconds)),
             });
+
+        context.Items[SessionItemKey] = sessionId;
 
         return sessionId;
     }

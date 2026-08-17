@@ -15,11 +15,11 @@ This project must not be used to send abusive traffic to third-party websites. P
 
 ## Current phase
 
-**Phase 6 — Virtual Waiting Room / Admission Control**
+**Phase 7 — Signed Admission Tokens**
 
-The completed Phase 1–5 paths remain reproducible. Phase 6 adds bounded admission state so eligible sessions can wait outside the origin and be progressively admitted. InMemory remains available for one-process local development; Redis mode coordinates admission across instances.
+The completed Phase 1–6 paths remain reproducible. Phase 7 adds a short-lived signed proof for an admitted `DropShield.Session`, bound to the configured protected drop and rechecked against Phase 6 server-side admission state before forwarding. InMemory remains available for one-process local development; Redis mode coordinates admission across instances.
 
-Per-client rate limits remain the abuse boundary. Waiting clients receive JSON HTTP 202 rather than an exact queue position, while admitted clients reach the synthetic origin. Signed admission tokens, cart replay protection, inventory reservation, bot classification, adaptive admission, Adobe Commerce integration, and edge-provider integration have not been implemented.
+Per-client rate limits remain the abuse boundary. Waiting clients receive JSON HTTP 202 rather than an exact queue position, while admitted clients receive an HttpOnly admission-proof cookie and can reach the synthetic origin. Cart replay protection, inventory reservation, bot classification, adaptive admission, Adobe Commerce integration, and edge-provider integration have not been implemented.
 
 ## Architecture direction
 
@@ -60,6 +60,7 @@ dotnet test DropShield.sln
 Start each API in a separate terminal:
 
 ```powershell
+$env:ASPNETCORE_ENVIRONMENT = 'Development'
 dotnet run --project src/DropShield.Api
 dotnet run --project src/DropShield.DemoStore
 ```
@@ -71,6 +72,14 @@ Default local URLs:
 - Demo Store stock: `http://localhost:5058/api/products/pokemon-etb/stock`
 
 The demo store's intentional inventory lookup delay is configured in `src/DropShield.DemoStore/appsettings.json`.
+
+Development InMemory mode generates a non-persistent admission signing key when none is configured; tokens invalidate on restart. Production and Redis mode require a shared Base64 key before startup:
+
+```powershell
+$env:DropShield__AdmissionTokens__KeyId = '2026-08-primary'
+$env:DropShield__AdmissionTokens__SigningKey = [Convert]::ToBase64String(
+    [Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
+```
 
 ## Phase 2 — Baseline Load Testing
 
@@ -166,7 +175,7 @@ dotnet run --project src/DropShield.Api
 
 Redis unavailability is fail-closed: protected traffic receives HTTP 503 and is not forwarded or silently placed on a weaker local limiter. See [`docs/PHASE5_DISTRIBUTED_STATE.md`](docs/PHASE5_DISTRIBUTED_STATE.md) and [ADR-003](docs/adr/ADR-003-distributed-state-provider.md).
 
-## Phase 6 — Waiting-room behavior
+## Phase 6 and 7 — Waiting room and signed proof
 
 Admission is enabled for `pokemon-etb` in the committed PoC configuration. A protected-stock request first passes the per-client abuse limit. The first configured batch of sessions is admitted; eligible excess sessions receive:
 
@@ -178,7 +187,7 @@ Admission is enabled for `pokemon-etb` in the committed PoC configuration. A pro
 }
 ```
 
-The response is HTTP 202 with `Retry-After`. Poll the same protected-stock URL using the returned `DropShield.Session` cookie. No exact queue position is promised. See [`docs/PHASE6_ADMISSION_CONTROL.md`](docs/PHASE6_ADMISSION_CONTROL.md) and [ADR-004](docs/adr/ADR-004-admission-control.md).
+The response is HTTP 202 with `Retry-After`. Poll the same protected-stock URL using the returned `DropShield.Session` cookie. No exact queue position is promised. An admitted response also sets a separate short-lived HttpOnly `DropShield.Admission` cookie carrying HMAC-SHA256 proof bound to that session and drop. Invalid proof never reaches DemoStore, but valid proof still requires active Phase 6 admission state; rate limits still apply. See [`docs/PHASE6_ADMISSION_CONTROL.md`](docs/PHASE6_ADMISSION_CONTROL.md), [`docs/PHASE7_SIGNED_ADMISSION.md`](docs/PHASE7_SIGNED_ADMISSION.md), [ADR-004](docs/adr/ADR-004-admission-control.md), and [ADR-005](docs/adr/ADR-005-signed-admission-tokens.md).
 
 ## Docker
 

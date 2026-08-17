@@ -6,22 +6,22 @@ DropShield is an edge-first, ecommerce-aware flash-drop protection architecture 
 
 The core remains edge-provider-neutral. Provider-specific capabilities belong behind future adapters rather than inside DropShield's core policy and commerce concepts.
 
-This document primarily describes future direction. Phase 3 implements provider-neutral traffic-rate controls, Phase 4 adds bounded internal observability, Phase 5 adds optional Redis-backed shared enforcement state, and Phase 6 adds bounded waiting/admission decisions. Signed admission, Adobe Commerce, and edge-provider integrations remain future work.
+This document primarily describes future direction. Phase 3 implements provider-neutral traffic-rate controls, Phase 4 adds bounded internal observability, Phase 5 adds optional Redis-backed shared enforcement state, Phase 6 adds bounded waiting/admission decisions, and Phase 7 adds scoped signed admission proof. Adobe Commerce and edge-provider integrations remain future work.
 
 ## Current local implementation
 
 The working PoC keeps the synthetic origin and protection boundary separate:
 
 ```text
-local client → DropShield.Api → per-client rate policy → admission → DropShield.DemoStore
-                    │                  │                 │
-                    │                  └─ abuse 429       └─ admitted or waiting 202
+local client → DropShield.Api → per-client rate policy → proof + admission → DropShield.DemoStore
+                    │                  │                         │
+                    │                  └─ abuse 429               └─ admitted, waiting 202, or safe proof rejection
                     └─ InMemory or shared Redis state + per-instance metrics
 ```
 
 The observability layer records only fixed route categories, aggregate outcomes, bounded latency histograms, and a short rolling-rate window. It does not retain request or identity histories and does not introduce a provider-specific telemetry dependency. See [Phase 4 observability](PHASE4_OBSERVABILITY.md).
 
-Redis is an optional implementation detail behind focused traffic and admission-state boundaries. It stores expiry-driven fixed-window counts and bounded HMAC-derived active/waiting session members. It does not store carts, inventory, customer identity, request contents, cookies, or telemetry. See [Phase 5 distributed state](PHASE5_DISTRIBUTED_STATE.md), [Phase 6 admission control](PHASE6_ADMISSION_CONTROL.md), [ADR-003](adr/ADR-003-distributed-state-provider.md), and [ADR-004](adr/ADR-004-admission-control.md).
+Redis is an optional implementation detail behind focused traffic and admission-state boundaries. It stores expiry-driven fixed-window counts and bounded HMAC-derived active/waiting session members. Signed admission proof is locally verified and is not stored in Redis, although active admission state is still checked to preserve capacity semantics. It does not store carts, inventory, customer identity, request contents, cookies, tokens, or telemetry. See [Phase 5 distributed state](PHASE5_DISTRIBUTED_STATE.md), [Phase 6 admission control](PHASE6_ADMISSION_CONTROL.md), [Phase 7 signed admission](PHASE7_SIGNED_ADMISSION.md), [ADR-003](adr/ADR-003-distributed-state-provider.md), [ADR-004](adr/ADR-004-admission-control.md), and [ADR-005](adr/ADR-005-signed-admission-tokens.md).
 
 ## Conceptual architecture
 

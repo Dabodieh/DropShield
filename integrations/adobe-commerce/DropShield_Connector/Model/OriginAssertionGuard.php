@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace DropShield\Connector\Model;
 
-use Magento\Framework\App\RequestInterface;
+use Magento\Framework\App\Request\Http as HttpRequest;
 use Magento\Framework\Phrase;
 use Psr\Log\LoggerInterface;
 
@@ -26,7 +26,7 @@ class OriginAssertionGuard
      * @throws AuthorizationRequiredException
      */
     public function requireValidAssertion(
-        RequestInterface $request,
+        HttpRequest $request,
         string $drop,
         string $action,
         string $route

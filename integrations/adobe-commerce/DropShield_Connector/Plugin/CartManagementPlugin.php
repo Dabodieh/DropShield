@@ -6,7 +6,7 @@ namespace DropShield\Connector\Plugin;
 
 use DropShield\Connector\Model\OriginAssertionGuard;
 use DropShield\Connector\Model\ProtectedDropResolver;
-use Magento\Framework\App\RequestInterface;
+use Magento\Framework\App\Request\Http as HttpRequest;
 use Magento\Quote\Api\CartManagementInterface;
 use Magento\Quote\Api\CartRepositoryInterface;
 
@@ -15,6 +15,11 @@ use Magento\Quote\Api\CartRepositoryInterface;
  * every order-placement flow (REST, GraphQL placeOrder, and storefront
  * one-page checkout via PaymentInformationManagementInterface) ultimately
  * calls to convert a quote into an order.
+ *
+ * Confirmed by runtime testing against Mage-OS 3.0.0 (see
+ * docs/adobe-commerce.md): a protected checkout is rejected without a valid
+ * assertion and succeeds with one, over both REST guest checkout and the
+ * GraphQL placeOrder mutation.
  *
  * Only quotes containing a protected drop require a valid origin
  * assertion; ordinary checkouts are unaffected.
@@ -28,7 +33,7 @@ class CartManagementPlugin
         private readonly CartRepositoryInterface $cartRepository,
         private readonly ProtectedDropResolver $dropResolver,
         private readonly OriginAssertionGuard $guard,
-        private readonly RequestInterface $request
+        private readonly HttpRequest $request
     ) {
     }
 

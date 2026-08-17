@@ -16,10 +16,12 @@ internal sealed class RecordingDemoStoreClient : IDemoStoreClient
 
     public (string HeaderName, string Value)? LastOriginAssertionHeader { get; private set; }
 
+    public byte[]? LastForwardedBody { get; private set; }
+
     public int GetRequestCount(string path) =>
         _requestCounts.GetValueOrDefault(path);
 
-    public Task<HttpResponseMessage> SendAsync(
+    public async Task<HttpResponseMessage> SendAsync(
         HttpMethod method,
         string path,
         HttpRequest sourceRequest,
@@ -27,6 +29,7 @@ internal sealed class RecordingDemoStoreClient : IDemoStoreClient
         (string HeaderName, string Value)? originAssertionHeader = null)
     {
         LastOriginAssertionHeader = originAssertionHeader;
+        LastForwardedBody = await CaptureBodyAsync(sourceRequest, cancellationToken);
         if (ThrowOnSend)
         {
             throw new HttpRequestException("Synthetic origin failure.");
@@ -48,10 +51,32 @@ internal sealed class RecordingDemoStoreClient : IDemoStoreClient
             ("POST", "/api/cart") or ("POST", "/api/checkout") => Json(
                 HttpStatusCode.Accepted,
                 """{"status":"accepted"}"""),
+            ("POST", "/graphql") => Json(
+                HttpStatusCode.OK,
+                """{"data":{"addProductsToCart":{"cart":{"items":[]}}}}"""),
+            ("POST", "/checkout/cart/add") => Json(
+                HttpStatusCode.Accepted,
+                """{"status":"accepted"}"""),
             _ => new HttpResponseMessage(HttpStatusCode.NotFound),
         };
 
-        return Task.FromResult(response);
+        return response;
+    }
+
+    private static async Task<byte[]?> CaptureBodyAsync(
+        HttpRequest sourceRequest,
+        CancellationToken cancellationToken)
+    {
+        if (sourceRequest.ContentLength is null or 0 && sourceRequest.Headers.TransferEncoding.Count == 0)
+        {
+            return null;
+        }
+
+        sourceRequest.EnableBuffering();
+        using var buffer = new MemoryStream();
+        await sourceRequest.Body.CopyToAsync(buffer, cancellationToken);
+        sourceRequest.Body.Position = 0;
+        return buffer.ToArray();
     }
 
     private static HttpResponseMessage Json(HttpStatusCode statusCode, string json) => new(statusCode)

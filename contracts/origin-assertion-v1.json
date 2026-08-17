@@ -12,9 +12,15 @@
     "timestamps": "Unix epoch seconds (UTC), integers"
   },
   "routes": {
-    "description": "Canonical route templates that must appear byte-identical in the 'route' claim on both the issuing side (DropShield.Api) and every verifying connector. A mismatch is a protocol bug, not a runtime configuration issue.",
+    "description": "Canonical route templates that must appear byte-identical in the 'route' claim on both the issuing side and every verifying connector. A mismatch is a protocol bug, not a runtime configuration issue. bodyHash must always cover the exact raw bytes of that route's actual request body — never a fabricated payload for a different transport.",
     "cart": "POST /api/cart",
-    "checkout": "POST /api/checkout"
+    "checkout": "POST /api/checkout",
+    "graphqlCartAdd": "POST /graphql",
+    "storefrontCartAdd": "POST /checkout/cart/add",
+    "notes": {
+      "graphqlCartAdd": "action \"cart\"; bodyHash covers the raw GraphQL request body (the query/variables JSON) exactly as received, not the REST cart route's body shape. DropShield.Api issues this only when the request targets POST /graphql and the GraphQL document is an addProductsToCart mutation for the configured protected drop; ordinary GraphQL traffic (catalogue/customer queries, cart-add for non-protected SKUs) on the same shared endpoint is forwarded without an assertion and without entering the protected-mutation pipeline. See docs/adobe-commerce.md.",
+      "storefrontCartAdd": "action \"cart\"; bodyHash covers the raw storefront form-POST body exactly as received. DropShield.Api issues this for every POST /checkout/cart/add request, matching the REST cart route's unconditional treatment (this route has no ordinary/non-cart traffic to disambiguate from, unlike graphqlCartAdd)."
+    }
   },
   "payloadFields": {
     "v": "integer, format version, must equal 1",

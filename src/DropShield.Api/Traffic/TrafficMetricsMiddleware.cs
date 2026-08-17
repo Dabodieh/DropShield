@@ -28,6 +28,14 @@ public sealed class TrafficMetricsMiddleware(RequestDelegate next)
             context.Request,
             options.Value.ProtectedProducts);
         var observation = new TrafficRequestObservation(isProtectedStock);
+        if (route == TrafficRoute.GraphQlCartAdd)
+        {
+            observation.IsProtectedGraphQlCartMutation = await IsProtectedGraphQlCartMutationAsync(
+                context.Request,
+                options.Value,
+                context.RequestAborted);
+        }
+
         context.Features.Set(observation);
         metrics.RecordIncoming(route, isProtectedStock);
         var startedTimestamp = Stopwatch.GetTimestamp();
@@ -80,7 +88,8 @@ public sealed class TrafficMetricsMiddleware(RequestDelegate next)
                     CancellationToken.None);
             }
 
-            var isTransaction = route is TrafficRoute.Cart or TrafficRoute.Checkout ||
+            var isTransaction = route is TrafficRoute.Cart or TrafficRoute.Checkout or TrafficRoute.StorefrontCartAdd ||
+                                (route == TrafficRoute.GraphQlCartAdd && observation.IsProtectedGraphQlCartMutation) ||
                                 (route == TrafficRoute.ActionProof &&
                                  ActionProofPolicy.TryGetAction(context.Request, out _));
             if (isTransaction)
@@ -91,5 +100,37 @@ public sealed class TrafficMetricsMiddleware(RequestDelegate next)
                     CancellationToken.None);
             }
         }
+    }
+
+    /// <summary>
+    /// POST /graphql is a shared endpoint: catalogue queries, customer/account operations, and
+    /// cart-add mutations for both protected and ordinary SKUs all arrive here. Only a request
+    /// whose GraphQL document invokes addProductsToCart for the one configured protected drop
+    /// should enter the protected-mutation pipeline (admission/action-proof/reservation);
+    /// everything else on this route is ordinary traffic. Reads the body once; the request
+    /// stream is left rewound for downstream consumers (action proof, forwarding).
+    /// </summary>
+    private static async Task<bool> IsProtectedGraphQlCartMutationAsync(
+        HttpRequest request,
+        DropShieldOptions options,
+        CancellationToken cancellationToken)
+    {
+        var body = await RequestBodyReader.ReadAsync(request, cancellationToken);
+        var mutation = GraphQlCartMutationInspector.Inspect(body);
+        if (!mutation.IsCartAddMutation)
+        {
+            return false;
+        }
+
+        foreach (var sku in mutation.RequestedSkus)
+        {
+            if (options.ProtectedProducts.Contains(sku, StringComparer.OrdinalIgnoreCase) &&
+                string.Equals(sku, options.Admission.ProtectedProduct, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

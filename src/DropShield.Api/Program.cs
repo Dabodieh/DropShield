@@ -153,6 +153,16 @@ app.MapPost(
     (HttpContext context, DemoStoreForwarder forwarder, CancellationToken cancellationToken) =>
         forwarder.ForwardAsync(context, TrafficRoute.Checkout, cancellationToken));
 
+app.MapPost(
+    "/graphql",
+    (HttpContext context, DemoStoreForwarder forwarder, CancellationToken cancellationToken) =>
+        forwarder.ForwardAsync(context, TrafficRoute.GraphQlCartAdd, cancellationToken));
+
+app.MapPost(
+    "/checkout/cart/add",
+    (HttpContext context, DemoStoreForwarder forwarder, CancellationToken cancellationToken) =>
+        forwarder.ForwardAsync(context, TrafficRoute.StorefrontCartAdd, cancellationToken));
+
 app.MapGet("/internal/inventory", async (IInventoryReservationState state, IOptions<DropShieldOptions> options, IHostEnvironment environment, CancellationToken cancellationToken) =>
     !InternalDiagnosticsAreAvailable(options.Value, environment)
         ? Results.NotFound()

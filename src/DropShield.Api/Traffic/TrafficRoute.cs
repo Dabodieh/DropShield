@@ -9,4 +9,6 @@ public enum TrafficRoute
     Cart,
     Checkout,
     ActionProof,
+    GraphQlCartAdd,
+    StorefrontCartAdd,
 }

@@ -40,8 +40,12 @@ public sealed class DemoStoreForwarder(
         }
 
         var configured = options.Value;
+        var isProtectedGraphQlMutation = route == TrafficRoute.GraphQlCartAdd &&
+            (observation?.IsProtectedGraphQlCartMutation ?? false);
         (string HeaderName, string Value)? assertionHeader = null;
-        if (configured.OriginAssertions.Enabled && route is TrafficRoute.Cart or TrafficRoute.Checkout)
+        if (configured.OriginAssertions.Enabled &&
+            (route is TrafficRoute.Cart or TrafficRoute.Checkout or TrafficRoute.StorefrontCartAdd ||
+             isProtectedGraphQlMutation))
         {
             metrics.RecordCommerceProtectedRequest();
             string assertion;
@@ -129,30 +133,14 @@ public sealed class DemoStoreForwarder(
         DropShieldOptions configured,
         CancellationToken cancellationToken)
     {
-        var action = route == TrafficRoute.Cart ? ActionKind.Cart : ActionKind.Checkout;
-        var body = await ReadBodyAsync(context.Request, cancellationToken);
+        var action = route == TrafficRoute.Checkout ? ActionKind.Checkout : ActionKind.Cart;
+        var body = await RequestBodyReader.ReadAsync(context.Request, cancellationToken);
         return assertionService.Issue(
             configured.Admission.ProtectedProduct,
             action.ToString().ToLowerInvariant(),
             context.Request.Method,
             TrafficRouteClassifier.GetRouteTemplate(route),
             body);
-    }
-
-    private static async Task<byte[]> ReadBodyAsync(
-        HttpRequest request,
-        CancellationToken cancellationToken)
-    {
-        if (request.ContentLength is null or 0 && request.Headers.TransferEncoding.Count == 0)
-        {
-            return [];
-        }
-
-        request.EnableBuffering();
-        using var buffer = new MemoryStream();
-        await request.Body.CopyToAsync(buffer, cancellationToken);
-        request.Body.Position = 0;
-        return buffer.ToArray();
     }
 
     private static async Task WriteBadGatewayAsync(

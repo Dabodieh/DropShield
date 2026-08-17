@@ -17,7 +17,7 @@ public sealed class BehaviourPolicyMiddleware(RequestDelegate next)
         ILogger<BehaviourPolicyMiddleware> logger)
     {
         var configured = options.Value;
-        if (!configured.BehaviourScoring.Enabled || !AppliesToTransaction(context.Request))
+        if (!configured.BehaviourScoring.Enabled || !AppliesToTransaction(context))
         {
             await next(context);
             return;
@@ -55,8 +55,8 @@ public sealed class BehaviourPolicyMiddleware(RequestDelegate next)
         }
     }
 
-    private static bool AppliesToTransaction(HttpRequest request) =>
-        ActionProofPolicy.AppliesToMutation(request) ||
-        (request.Method == HttpMethods.Post &&
-         request.Path.StartsWithSegments("/api/action-proofs", StringComparison.Ordinal));
+    private static bool AppliesToTransaction(HttpContext context) =>
+        ActionProofPolicy.AppliesToMutation(context) ||
+        (context.Request.Method == HttpMethods.Post &&
+         context.Request.Path.StartsWithSegments("/api/action-proofs", StringComparison.Ordinal));
 }

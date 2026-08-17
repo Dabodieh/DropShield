@@ -17,7 +17,7 @@ public sealed class InventoryReservationMiddleware(RequestDelegate next)
     {
         var configured = options.Value;
         if (!configured.InventoryReservation.Enabled ||
-            !ActionProofPolicy.AppliesToMutation(context.Request))
+            !ActionProofPolicy.AppliesToMutation(context))
         {
             await next(context);
             return;
@@ -30,7 +30,7 @@ public sealed class InventoryReservationMiddleware(RequestDelegate next)
             return;
         }
 
-        var isCart = ActionProofPolicy.GetMutationAction(context.Request) == ActionKind.Cart;
+        var isCart = ActionProofPolicy.GetMutationAction(context) == ActionKind.Cart;
         ReservationResult reservation;
         try
         {

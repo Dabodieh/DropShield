@@ -39,6 +39,18 @@ public sealed class RedisTrafficPolicyEvaluator(
                 TrafficPolicyKind.Checkout,
                 _options.Policies.Checkout,
                 cancellationToken),
+            TrafficRoute.StorefrontCartAdd => await EvaluateClientPolicyAsync(
+                context,
+                TrafficPolicyKind.Cart,
+                _options.Policies.Cart,
+                cancellationToken),
+            TrafficRoute.GraphQlCartAdd when context.Features.Get<TrafficRequestObservation>()
+                    ?.IsProtectedGraphQlCartMutation ?? false =>
+                await EvaluateClientPolicyAsync(
+                    context,
+                    TrafficPolicyKind.Cart,
+                    _options.Policies.Cart,
+                    cancellationToken),
             TrafficRoute.ActionProof when ActionProofPolicy.TryGetAction(
                 context.Request,
                 out var action) => await EvaluateClientPolicyAsync(

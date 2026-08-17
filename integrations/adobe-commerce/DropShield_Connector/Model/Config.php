@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace DropShield\Connector\Model;
 
 use Magento\Framework\App\Config\ScopeConfigInterface;
+use Magento\Framework\Encryption\EncryptorInterface;
 use Magento\Store\Model\ScopeInterface;
 
 /**
@@ -20,8 +21,10 @@ class Config
     private const XML_PATH_CLOCK_TOLERANCE_SECONDS = 'dropshield_connector/origin_assertion/clock_tolerance_seconds';
     private const XML_PATH_HEADER_NAME = 'dropshield_connector/origin_assertion/header_name';
 
-    public function __construct(private readonly ScopeConfigInterface $scopeConfig)
-    {
+    public function __construct(
+        private readonly ScopeConfigInterface $scopeConfig,
+        private readonly EncryptorInterface $encryptor
+    ) {
     }
 
     public function isEnabled(?int $storeId = null): bool
@@ -72,13 +75,21 @@ class Config
         );
     }
 
+    /**
+     * Config field uses the Encrypted backend model for admin display/storage, but
+     * ScopeConfigInterface::getValue() returns the raw encrypted string — decryption only
+     * happens automatically inside the admin config form's own load path. Every other reader
+     * of an Encrypted-backed value (this connector included) must decrypt explicitly.
+     */
     public function getSigningKeyBase64(?int $storeId = null): string
     {
-        return (string) $this->scopeConfig->getValue(
+        $encrypted = (string) $this->scopeConfig->getValue(
             self::XML_PATH_SIGNING_KEY,
             ScopeInterface::SCOPE_STORE,
             $storeId
         );
+
+        return $encrypted === '' ? '' : $this->encryptor->decrypt($encrypted);
     }
 
     public function getClockToleranceSeconds(?int $storeId = null): int

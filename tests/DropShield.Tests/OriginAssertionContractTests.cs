@@ -22,6 +22,19 @@ public sealed class OriginAssertionContractTests
         Assert.Equal(routes["checkout"], TrafficRouteClassifier.GetRouteTemplate(TrafficRoute.Checkout));
     }
 
+    [Fact]
+    public void GraphQlAndStorefrontRouteTemplates_MatchTheSharedContract()
+    {
+        var routes = LoadContractRoutes();
+
+        Assert.Equal(
+            routes["graphqlCartAdd"],
+            TrafficRouteClassifier.GetRouteTemplate(TrafficRoute.GraphQlCartAdd));
+        Assert.Equal(
+            routes["storefrontCartAdd"],
+            TrafficRouteClassifier.GetRouteTemplate(TrafficRoute.StorefrontCartAdd));
+    }
+
     private static Dictionary<string, string> LoadContractRoutes()
     {
         var path = FindContractPath();
@@ -31,6 +44,8 @@ public sealed class OriginAssertionContractTests
         {
             ["cart"] = routes.GetProperty("cart").GetString()!,
             ["checkout"] = routes.GetProperty("checkout").GetString()!,
+            ["graphqlCartAdd"] = routes.GetProperty("graphqlCartAdd").GetString()!,
+            ["storefrontCartAdd"] = routes.GetProperty("storefrontCartAdd").GetString()!,
         };
     }
 

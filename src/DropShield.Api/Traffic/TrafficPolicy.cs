@@ -33,7 +33,8 @@ public static class TrafficPolicy
                 options.ProtectedProducts);
             var reason = route switch
             {
-                TrafficRoute.Cart or TrafficRoute.Checkout or TrafficRoute.ActionProof =>
+                TrafficRoute.Cart or TrafficRoute.Checkout or TrafficRoute.ActionProof
+                    or TrafficRoute.StorefrontCartAdd or TrafficRoute.GraphQlCartAdd =>
                     RateLimitReason.PerClient,
                 TrafficRoute.Stock when isProtectedStock =>
                     RateLimitReason.ProtectedStockChained,
@@ -81,7 +82,7 @@ public static class TrafficPolicy
         }
 
         var route = TrafficRouteClassifier.Classify(context.Request);
-        var policy = GetClientPolicy(route, context.Request, options);
+        var policy = GetClientPolicy(route, context, options);
         if (policy is null || !policy.Enabled)
         {
             return RateLimitPartition.GetNoLimiter($"unlimited:{route}");
@@ -127,8 +128,11 @@ public static class TrafficPolicy
 
     private static ClientPolicyOptions? GetClientPolicy(
         TrafficRoute route,
-        HttpRequest request,
-        DropShieldOptions options) => route switch
+        HttpContext context,
+        DropShieldOptions options)
+    {
+        var request = context.Request;
+        return route switch
         {
             TrafficRoute.Stock when TrafficRouteClassifier.IsProtectedStockRequest(
                 request,
@@ -136,10 +140,15 @@ public static class TrafficPolicy
                 options.Policies.Stock,
             TrafficRoute.Cart => options.Policies.Cart,
             TrafficRoute.Checkout => options.Policies.Checkout,
+            TrafficRoute.StorefrontCartAdd => options.Policies.Cart,
+            TrafficRoute.GraphQlCartAdd when context.Features.Get<TrafficRequestObservation>()
+                    ?.IsProtectedGraphQlCartMutation ?? false =>
+                options.Policies.Cart,
             TrafficRoute.ActionProof when ActionProofPolicy.TryGetAction(request, out var action) =>
                 action == ActionKind.Cart ? options.Policies.Cart : options.Policies.Checkout,
             _ => null,
         };
+    }
 
     private static FixedWindowRateLimiterOptions CreateFixedWindowOptions(
         int permitLimit,

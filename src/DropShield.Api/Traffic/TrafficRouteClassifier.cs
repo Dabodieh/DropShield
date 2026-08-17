@@ -39,6 +39,18 @@ public static class TrafficRouteClassifier
         }
 
         if (HttpMethods.IsPost(request.Method) &&
+            path.Equals("/graphql", StringComparison.OrdinalIgnoreCase))
+        {
+            return TrafficRoute.GraphQlCartAdd;
+        }
+
+        if (HttpMethods.IsPost(request.Method) &&
+            path.Equals("/checkout/cart/add", StringComparison.OrdinalIgnoreCase))
+        {
+            return TrafficRoute.StorefrontCartAdd;
+        }
+
+        if (HttpMethods.IsPost(request.Method) &&
             Actions.ActionProofPolicy.TryGetAction(request, out _))
         {
             return TrafficRoute.ActionProof;
@@ -65,6 +77,8 @@ public static class TrafficRouteClassifier
         TrafficRoute.Cart => "cart",
         TrafficRoute.Checkout => "checkout",
         TrafficRoute.ActionProof => "actionProof",
+        TrafficRoute.GraphQlCartAdd => "graphqlCartAdd",
+        TrafficRoute.StorefrontCartAdd => "storefrontCartAdd",
         _ => "unknown",
     };
 
@@ -76,6 +90,8 @@ public static class TrafficRouteClassifier
         TrafficRoute.Cart => "POST /api/cart",
         TrafficRoute.Checkout => "POST /api/checkout",
         TrafficRoute.ActionProof => "POST /api/action-proofs/{action}",
+        TrafficRoute.GraphQlCartAdd => "POST /graphql",
+        TrafficRoute.StorefrontCartAdd => "POST /checkout/cart/add",
         _ => "unknown",
     };
 

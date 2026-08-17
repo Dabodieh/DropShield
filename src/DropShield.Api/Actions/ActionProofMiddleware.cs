@@ -21,7 +21,7 @@ public sealed class ActionProofMiddleware(RequestDelegate next)
     {
         var configuredOptions = options.Value;
         if (!configuredOptions.ActionProofs.Enabled ||
-            !ActionProofPolicy.AppliesToMutation(context.Request))
+            !ActionProofPolicy.AppliesToMutation(context))
         {
             await next(context);
             return;
@@ -41,7 +41,7 @@ public sealed class ActionProofMiddleware(RequestDelegate next)
         }
         context.Items[AuthorizedSessionItemKey] = admission.SessionId!;
 
-        var action = ActionProofPolicy.GetMutationAction(context.Request);
+        var action = ActionProofPolicy.GetMutationAction(context);
         if (!context.Request.Headers.TryGetValue(
                 configuredOptions.ActionProofs.HeaderName,
                 out var tokenValues) || tokenValues.Count != 1)

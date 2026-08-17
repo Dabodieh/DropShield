@@ -133,5 +133,8 @@ internal sealed class DropShieldApiFactory(
         ["DropShield:Policies:Checkout:Enabled"] = "true",
         ["DropShield:Policies:Checkout:ClientPermitLimit"] = "1",
         ["DropShield:Policies:Checkout:ClientWindowSeconds"] = "60",
+        ["DropShield:EdgeTrust:Enabled"] = "false",
+        ["DropShield:EdgeTrust:HeaderName"] = "X-DropShield-Edge-Key",
+        ["DropShield:EdgeTrust:SharedKey"] = "",
     };
 }

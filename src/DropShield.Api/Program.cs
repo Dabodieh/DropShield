@@ -84,6 +84,7 @@ var configuredOptions = app.Services
     .Value;
 
 app.UseRouting();
+app.UseMiddleware<EdgeTrustMiddleware>();
 app.UseMiddleware<TrafficMetricsMiddleware>();
 if (configuredOptions.StateProvider == TrafficStateProvider.Redis)
 {

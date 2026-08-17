@@ -41,7 +41,7 @@ local client → DropShield.Api → per-client rate policy → admission + proof
 
 Deeper documentation:
 
-- [Architecture](docs/ARCHITECTURE.md) — overall design and future edge-integration direction.
+- [Architecture](docs/ARCHITECTURE.md) — overall design and edge-integration direction.
 - [Traffic control](docs/traffic-control.md) — rate limiting, distributed state, waiting-room
   admission, signed admission proof.
 - [Transaction protection](docs/transaction-protection.md) — one-time action proof and
@@ -50,6 +50,8 @@ Deeper documentation:
 - [Observability](docs/observability.md) — the internal metrics endpoint.
 - [Adobe Commerce](docs/adobe-commerce.md) — the origin-assertion contract and the Magento
   connector.
+- [Fastly](docs/fastly.md) — reference edge adapter; not evidence of any retailer's production
+  edge.
 - [Benchmarks](docs/benchmarks.md) — measured unprotected vs. protected throughput/latency.
 - [Roadmap](docs/ROADMAP.md).
 

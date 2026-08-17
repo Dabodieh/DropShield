@@ -35,6 +35,8 @@ public sealed class DropShieldOptions
     public OriginAssertionOptions OriginAssertions { get; set; } = new();
 
     public TrafficPoliciesOptions Policies { get; set; } = new();
+
+    public EdgeTrustOptions EdgeTrust { get; set; } = new();
 }
 
 public enum TrafficStateProvider
@@ -167,6 +169,21 @@ public sealed class OriginAssertionOptions
     public string KeyId { get; set; } = "primary";
 
     public string SigningKey { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Optional shared-secret trust check for a fronting edge (for example the Fastly reference
+/// adapter in integrations/fastly). Dedicated to edge authentication only — never shared with
+/// admission, action proof, or origin assertion signing keys. When disabled, DropShield accepts
+/// requests regardless of edge origin, matching the current direct-access PoC deployment model.
+/// </summary>
+public sealed class EdgeTrustOptions
+{
+    public bool Enabled { get; set; }
+
+    public string HeaderName { get; set; } = "X-DropShield-Edge-Key";
+
+    public string SharedKey { get; set; } = string.Empty;
 }
 
 public sealed class TrafficPoliciesOptions

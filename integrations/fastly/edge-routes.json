@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Route templates the Fastly reference adapter routes to the DropShield backend. Test-time consistency check against contracts/origin-assertion-v1.json and DropShield.Api's TrafficRouteClassifier — not read by VCL at runtime.",
+  "dropshieldRoutes": [
+    "GET /api/products",
+    "GET /api/products/{productId}",
+    "GET /api/products/{productId}/stock",
+    "POST /api/cart",
+    "POST /api/checkout",
+    "POST /api/action-proofs/{action}",
+    "POST /graphql",
+    "POST /checkout/cart/add",
+    "GET /health"
+  ],
+  "deniedAtEdge": [
+    "/internal/*"
+  ],
+  "notes": [
+    "POST /graphql is routed to DropShield unconditionally: Fastly VCL cannot distinguish a protected addProductsToCart mutation from ordinary GraphQL traffic on the same shared endpoint, so DropShield.Api's GraphQlCartMutationInspector makes that decision after routing, not the edge.",
+    "The cart/checkout/graphqlCartAdd/storefrontCartAdd subset of dropshieldRoutes must stay byte-identical to the route templates in contracts/origin-assertion-v1.json.",
+    "GET /health is routed to DropShield so edge health checks reach the same instance origin traffic does; it is not a protected-mutation route and carries no origin assertion."
+  ]
+}

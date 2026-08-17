@@ -87,6 +87,7 @@ public sealed partial class DropShieldOptionsValidator(IHostEnvironment environm
         ValidateBehaviourScoring(options, failures);
         ValidateOriginAssertions(options, isControlledEnvironment, failures);
         ValidateInternalHashing(options, isControlledEnvironment, failures);
+        ValidateEdgeTrust(options, isControlledEnvironment, failures);
 
         return failures.Count == 0
             ? ValidateOptionsResult.Success
@@ -468,6 +469,48 @@ public sealed partial class DropShieldOptionsValidator(IHostEnvironment environm
         }
 
         CryptographicOperations.ZeroMemory(key);
+    }
+
+    private static void ValidateEdgeTrust(
+        DropShieldOptions options,
+        bool isControlledEnvironment,
+        ICollection<string> failures)
+    {
+        var edge = options.EdgeTrust;
+        if (!edge.Enabled)
+        {
+            return;
+        }
+
+        if (!HeaderNamePattern().IsMatch(edge.HeaderName))
+        {
+            failures.Add("DropShield:EdgeTrust:HeaderName is invalid.");
+        }
+
+        if (string.IsNullOrWhiteSpace(edge.SharedKey))
+        {
+            if (!isControlledEnvironment)
+            {
+                failures.Add(
+                    "DropShield:EdgeTrust:SharedKey is required in Production or other non-controlled environments.");
+            }
+
+            return;
+        }
+
+        if (edge.SharedKey.Length < 32)
+        {
+            failures.Add("DropShield:EdgeTrust:SharedKey must contain at least 32 characters.");
+        }
+
+        if (string.Equals(edge.SharedKey, options.AdmissionTokens.SigningKey, StringComparison.Ordinal) ||
+            string.Equals(edge.SharedKey, options.ActionProofs.SigningKey, StringComparison.Ordinal) ||
+            string.Equals(edge.SharedKey, options.OriginAssertions.SigningKey, StringComparison.Ordinal) ||
+            string.Equals(edge.SharedKey, options.InternalHashing.SigningKey, StringComparison.Ordinal))
+        {
+            failures.Add(
+                "DropShield:EdgeTrust:SharedKey must not reuse another DropShield signing key.");
+        }
     }
 
     private static void ValidateRedis(

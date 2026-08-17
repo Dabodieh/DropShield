@@ -19,8 +19,8 @@ local client → DropShield.Api → per-client rate policy → proof + admission
 `DropShield.DemoStore` and the protection pipeline are separate processes. See
 [traffic control](traffic-control.md), [transaction protection](transaction-protection.md),
 [behavioural scoring](behavioural-scoring.md), and the
-[Adobe Commerce connector](adobe-commerce.md) for how each stage works. Edge-provider
-integration (Fastly/Cloudflare/Akamai) remains future work.
+[Adobe Commerce connector](adobe-commerce.md) for how each stage works. A Fastly reference edge
+adapter exists — see [docs/fastly.md](fastly.md); Cloudflare and Akamai remain future work.
 
 The observability layer (see [observability](observability.md)) records only fixed route
 categories, aggregate outcomes, bounded latency histograms, and a short rolling-rate window —
@@ -79,9 +79,9 @@ retailer-specific research informs it, see [Hamleys platform research](hamleys-p
 
 ## Protection domains
 
-### Edge protection (future)
+### Edge protection
 
-The edge domain may orchestrate or augment traffic shaping, rate controls, queue/admission
+The edge domain orchestrates or augments traffic shaping, rate controls, queue/admission
 policy, gross automation filtering, and API abuse controls, so abusive traffic is rejected
 before the application tier does expensive work:
 
@@ -91,6 +91,12 @@ Bot / Excess Traffic → Edge/CDN → DropShield traffic policy → Reject / Cha
 
 DropShield should not rely on a Magento module as the primary volumetric limiter, because the
 Commerce application would already have consumed origin resources before rejection.
+
+A Fastly reference adapter exists at [integrations/fastly](../integrations/fastly) ([design
+doc](fastly.md)), showing DropShield sitting behind an Adobe Commerce Fastly deployment without
+making Fastly part of DropShield's core architecture. The core stays provider-neutral; Fastly is
+the first reference adapter only because Adobe documents it as the standard Adobe Commerce Cloud
+edge. Cloudflare and Akamai adapters are not implemented.
 
 ### Adobe Commerce integration
 

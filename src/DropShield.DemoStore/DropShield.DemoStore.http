@@ -1,0 +1,30 @@
+@DropShield_DemoStore_HostAddress = http://localhost:5058
+
+GET {{DropShield_DemoStore_HostAddress}}/health
+Accept: application/json
+
+###
+
+GET {{DropShield_DemoStore_HostAddress}}/api/products
+Accept: application/json
+
+###
+
+GET {{DropShield_DemoStore_HostAddress}}/api/products/pokemon-etb
+Accept: application/json
+
+###
+
+GET {{DropShield_DemoStore_HostAddress}}/api/products/pokemon-etb/stock
+Accept: application/json
+
+###
+
+POST {{DropShield_DemoStore_HostAddress}}/api/cart
+
+###
+
+POST {{DropShield_DemoStore_HostAddress}}/api/checkout
+
+###
+

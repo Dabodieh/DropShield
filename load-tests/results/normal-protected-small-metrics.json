@@ -1,0 +1,10 @@
+{
+  "total": { "incoming": 86, "forwarded": 86, "rateLimited": 0 },
+  "routes": {
+    "products": { "incoming": 26, "forwarded": 26, "rateLimited": 0 },
+    "product": { "incoming": 26, "forwarded": 26, "rateLimited": 0 },
+    "stock": { "incoming": 26, "forwarded": 26, "rateLimited": 0 },
+    "cart": { "incoming": 8, "forwarded": 8, "rateLimited": 0 },
+    "checkout": { "incoming": 0, "forwarded": 0, "rateLimited": 0 }
+  }
+}

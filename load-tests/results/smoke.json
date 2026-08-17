@@ -1,0 +1,250 @@
+{
+    "root_group": {
+        "name": "",
+        "path": "",
+        "id": "d41d8cd98f00b204e9800998ecf8427e",
+        "groups": {
+            "load-test harness smoke check": {
+                "name": "load-test harness smoke check",
+                "path": "::load-test harness smoke check",
+                "id": "7ba45e429143e512163215c0161bce61",
+                "groups": {},
+                "checks": {
+                        "GET /health returns 200": {
+                            "passes": 1,
+                            "fails": 0,
+                            "name": "GET /health returns 200",
+                            "path": "::load-test harness smoke check::GET /health returns 200",
+                            "id": "b3dd331932a0e1baed91f340be8a7006"
+                        },
+                        "health payload identifies DemoStore": {
+                            "name": "health payload identifies DemoStore",
+                            "path": "::load-test harness smoke check::health payload identifies DemoStore",
+                            "id": "2ae6e440f0e4444929fa44827b9ca889",
+                            "passes": 1,
+                            "fails": 0
+                        },
+                        "GET /api/products returns 200": {
+                            "id": "8dd82c8867a41867a41d980136156857",
+                            "passes": 1,
+                            "fails": 0,
+                            "name": "GET /api/products returns 200",
+                            "path": "::load-test harness smoke check::GET /api/products returns 200"
+                        },
+                        "product list contains Pokémon ETB": {
+                            "passes": 1,
+                            "fails": 0,
+                            "name": "product list contains Pokémon ETB",
+                            "path": "::load-test harness smoke check::product list contains Pokémon ETB",
+                            "id": "5219c53b145ad37ac9079177bb752c39"
+                        },
+                        "GET /api/products/pokemon-etb returns 200": {
+                            "path": "::load-test harness smoke check::GET /api/products/pokemon-etb returns 200",
+                            "id": "c387bbd7943076bfa0e059fd0319f50b",
+                            "passes": 1,
+                            "fails": 0,
+                            "name": "GET /api/products/pokemon-etb returns 200"
+                        },
+                        "product detail contains expected id": {
+                            "fails": 0,
+                            "name": "product detail contains expected id",
+                            "path": "::load-test harness smoke check::product detail contains expected id",
+                            "id": "3ada1c1495aea9db40fc5bac89b604f7",
+                            "passes": 1
+                        },
+                        "GET /api/products/pokemon-etb/stock returns 200": {
+                            "fails": 0,
+                            "name": "GET /api/products/pokemon-etb/stock returns 200",
+                            "path": "::load-test harness smoke check::GET /api/products/pokemon-etb/stock returns 200",
+                            "id": "3514c1d28d8f7a9c0eae47f46ed7a6ee",
+                            "passes": 1
+                        },
+                        "stock payload reports 500 available": {
+                            "name": "stock payload reports 500 available",
+                            "path": "::load-test harness smoke check::stock payload reports 500 available",
+                            "id": "3c4b1cbf63e6c405243e50980397acb1",
+                            "passes": 1,
+                            "fails": 0
+                        }
+                    }
+            }
+        },
+        "checks": {}
+    },
+    "metrics": {
+        "products_request_duration": {
+            "avg": 0.730266,
+            "min": 0.730266,
+            "med": 0.730266,
+            "p(90)": 0.730266,
+            "p(95)": 0.730266,
+            "p(99)": 0.730266,
+            "max": 0.730266
+        },
+        "group_duration": {
+            "med": 64.386207,
+            "p(90)": 64.386207,
+            "p(95)": 64.386207,
+            "p(99)": 64.386207,
+            "max": 64.386207,
+            "avg": 64.386207,
+            "min": 64.386207
+        },
+        "iteration_duration": {
+            "min": 64.411279,
+            "med": 64.411279,
+            "p(90)": 64.411279,
+            "p(95)": 64.411279,
+            "p(99)": 64.411279,
+            "max": 64.411279,
+            "avg": 64.411279
+        },
+        "iterations": {
+            "count": 1,
+            "rate": 15.487453505503018
+        },
+        "http_req_duration": {
+            "p(95)": 49.97776574999998,
+            "p(99)": 56.89745474999999,
+            "max": 58.627377,
+            "avg": 15.256506,
+            "min": 0.705079,
+            "med": 0.846784,
+            "p(90)": 41.32815450000001,
+            "thresholds": {
+                "p(95)<1000": false
+            }
+        },
+        "http_req_connecting": {
+            "min": 0,
+            "med": 0,
+            "p(90)": 0.6934830000000002,
+            "p(95)": 0.8420864999999996,
+            "p(99)": 0.9609692999999997,
+            "max": 0.99069,
+            "avg": 0.2476725
+        },
+        "http_req_failed": {
+            "passes": 0,
+            "fails": 4,
+            "value": 0
+        },
+        "data_sent": {
+            "count": 396,
+            "rate": 6133.031588179195
+        },
+        "http_req_sending": {
+            "avg": 0.035703000000000006,
+            "min": 0.006861,
+            "med": 0.0072905,
+            "p(90)": 0.08721500000000003,
+            "p(95)": 0.10429249999999997,
+            "p(99)": 0.11795449999999998,
+            "max": 0.12137
+        },
+        "http_reqs": {
+            "count": 4,
+            "rate": 61.94981402201207
+        },
+        "http_req_blocked": {
+            "avg": 0.6568020000000001,
+            "min": 0.00239,
+            "med": 0.0028304999999999997,
+            "p(90)": 1.8342862000000002,
+            "p(95)": 2.226721599999999,
+            "p(99)": 2.540669919999999,
+            "max": 2.619157
+        },
+        "http_req_tls_handshaking": {
+            "avg": 0,
+            "min": 0,
+            "med": 0,
+            "p(90)": 0,
+            "p(95)": 0,
+            "p(99)": 0,
+            "max": 0
+        },
+        "successful_requests": {
+            "count": 4,
+            "rate": 61.94981402201207
+        },
+        "request_error_rate": {
+            "passes": 0,
+            "fails": 4,
+            "thresholds": {
+                "rate==0": false
+            },
+            "value": 0
+        },
+        "http_req_waiting": {
+            "avg": 15.14373475,
+            "min": 0.625506,
+            "med": 0.7052620000000001,
+            "p(90)": 41.196848900000006,
+            "p(95)": 49.86787894999998,
+            "p(99)": 56.80470298999998,
+            "max": 58.538909
+        },
+        "checks": {
+            "passes": 8,
+            "fails": 0,
+            "thresholds": {
+                "rate==1": false
+            },
+            "value": 1
+        },
+        "product_request_duration": {
+            "p(90)": 0.705079,
+            "p(95)": 0.705079,
+            "p(99)": 0.705079,
+            "max": 0.705079,
+            "avg": 0.705079,
+            "min": 0.705079,
+            "med": 0.705079
+        },
+        "http_req_duration{expected_response:true}": {
+            "p(95)": 49.97776574999998,
+            "p(99)": 56.89745474999999,
+            "max": 58.627377,
+            "avg": 15.256506,
+            "min": 0.705079,
+            "med": 0.846784,
+            "p(90)": 41.32815450000001
+        },
+        "failed_requests": {
+            "count": 0,
+            "rate": 0
+        },
+        "stock_request_duration": {
+            "p(95)": 58.627377,
+            "p(99)": 58.627377,
+            "max": 58.627377,
+            "avg": 58.627377,
+            "min": 58.627377,
+            "med": 58.627377,
+            "p(90)": 58.627377
+        },
+        "health_request_duration": {
+            "max": 0.963302,
+            "avg": 0.963302,
+            "min": 0.963302,
+            "med": 0.963302,
+            "p(90)": 0.963302,
+            "p(95)": 0.963302,
+            "p(99)": 0.963302
+        },
+        "http_req_receiving": {
+            "avg": 0.07706825,
+            "min": 0.044264,
+            "med": 0.0770595,
+            "p(90)": 0.10134510000000001,
+            "p(95)": 0.10561754999999999,
+            "p(99)": 0.10903551,
+            "max": 0.10989
+        },
+        "data_received": {
+            "rate": 14062.60778299674,
+            "count": 908
+        }
+    }
+}

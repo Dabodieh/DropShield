@@ -1,0 +1,7 @@
+@DropShield_Api_HostAddress = http://localhost:5257
+
+GET {{DropShield_Api_HostAddress}}/health
+Accept: application/json
+
+###
+

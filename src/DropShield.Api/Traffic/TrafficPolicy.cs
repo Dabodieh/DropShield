@@ -27,8 +27,18 @@ public static class TrafficPolicy
         {
             var httpContext = rejectionContext.HttpContext;
             var route = TrafficRouteClassifier.Classify(httpContext.Request);
+            var isProtectedStock = TrafficRouteClassifier.IsProtectedStockRequest(
+                httpContext.Request,
+                options.ProtectedProducts);
+            var reason = route switch
+            {
+                TrafficRoute.Cart or TrafficRoute.Checkout => RateLimitReason.PerClient,
+                TrafficRoute.Stock when isProtectedStock =>
+                    RateLimitReason.ProtectedStockChained,
+                _ => RateLimitReason.Unattributed,
+            };
             httpContext.RequestServices.GetRequiredService<TrafficMetrics>()
-                .RecordRateLimited(route);
+                .RecordRateLimited(route, isProtectedStock, reason);
 
             var retryAfterSeconds = 1;
             if (rejectionContext.Lease.TryGetMetadata(
@@ -45,10 +55,10 @@ public static class TrafficPolicy
                 .GetRequiredService<ILoggerFactory>()
                 .CreateLogger("DropShield.TrafficPolicy");
             logger.LogDebug(
-                "Rate limited {Method} {Path} as {TrafficRoute}",
+                "Rate limited {Method} {TrafficRoute} with {RateLimitReason}",
                 httpContext.Request.Method,
-                httpContext.Request.Path,
-                route);
+                route,
+                reason);
 
             await httpContext.Response.WriteAsJsonAsync(
                 new GatewayErrorResponse(
@@ -93,7 +103,9 @@ public static class TrafficPolicy
         var stockPolicy = options.Policies.Stock;
         if (!options.Enabled ||
             !stockPolicy.Enabled ||
-            !IsProtectedStockRequest(context.Request, options))
+            !TrafficRouteClassifier.IsProtectedStockRequest(
+                context.Request,
+                options.ProtectedProducts))
         {
             return RateLimitPartition.GetNoLimiter("aggregate-unlimited");
         }
@@ -110,26 +122,14 @@ public static class TrafficPolicy
         HttpRequest request,
         DropShieldOptions options) => route switch
         {
-            TrafficRoute.Stock when IsProtectedStockRequest(request, options) =>
+            TrafficRoute.Stock when TrafficRouteClassifier.IsProtectedStockRequest(
+                request,
+                options.ProtectedProducts) =>
                 options.Policies.Stock,
             TrafficRoute.Cart => options.Policies.Cart,
             TrafficRoute.Checkout => options.Policies.Checkout,
             _ => null,
         };
-
-    private static bool IsProtectedStockRequest(
-        HttpRequest request,
-        DropShieldOptions options)
-    {
-        if (TrafficRouteClassifier.Classify(request) != TrafficRoute.Stock)
-        {
-            return false;
-        }
-
-        var productId = TrafficRouteClassifier.GetProductId(request);
-        return productId is not null &&
-               options.ProtectedProducts.Contains(productId, StringComparer.OrdinalIgnoreCase);
-    }
 
     private static FixedWindowRateLimiterOptions CreateFixedWindowOptions(
         int permitLimit,

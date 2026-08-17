@@ -6,7 +6,19 @@ DropShield is an edge-first, ecommerce-aware flash-drop protection architecture 
 
 The core remains edge-provider-neutral. Provider-specific capabilities belong behind future adapters rather than inside DropShield's core policy and commerce concepts.
 
-This document primarily describes future direction. Phase 3 now implements a local, provider-neutral traffic-rate control primitive in `DropShield.Api`; all Adobe Commerce and edge-provider integrations remain future work.
+This document primarily describes future direction. Phase 3 implements a local, provider-neutral traffic-rate control primitive in `DropShield.Api`, and Phase 4 adds bounded, internal observability around that unchanged path. All distributed state, Adobe Commerce, and edge-provider integrations remain future work.
+
+## Current local implementation
+
+The working PoC keeps the synthetic origin and protection boundary separate:
+
+```text
+local client → DropShield.Api → fixed traffic policy → DropShield.DemoStore
+                    │
+                    └─ bounded in-memory operational metrics
+```
+
+The observability layer records only fixed route categories, aggregate outcomes, bounded latency histograms, and a short rolling-rate window. It does not retain request or identity histories and does not introduce a provider-specific telemetry dependency. See [Phase 4 observability](PHASE4_OBSERVABILITY.md).
 
 ## Conceptual architecture
 

@@ -5,3 +5,11 @@ Accept: application/json
 
 ###
 
+GET {{DropShield_Api_HostAddress}}/internal/metrics
+Accept: application/json
+
+###
+
+POST {{DropShield_Api_HostAddress}}/internal/metrics/reset
+
+###

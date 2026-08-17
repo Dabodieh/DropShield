@@ -61,6 +61,30 @@ public static class TrafficRouteClassifier
         _ => "unknown",
     };
 
+    public static string GetRouteTemplate(TrafficRoute route) => route switch
+    {
+        TrafficRoute.Products => "GET /api/products",
+        TrafficRoute.Product => "GET /api/products/{productId}",
+        TrafficRoute.Stock => "GET /api/products/{productId}/stock",
+        TrafficRoute.Cart => "POST /api/cart",
+        TrafficRoute.Checkout => "POST /api/checkout",
+        _ => "unknown",
+    };
+
+    public static bool IsProtectedStockRequest(
+        HttpRequest request,
+        IReadOnlyCollection<string> protectedProducts)
+    {
+        if (Classify(request) != TrafficRoute.Stock)
+        {
+            return false;
+        }
+
+        var productId = GetProductId(request);
+        return productId is not null &&
+               protectedProducts.Contains(productId, StringComparer.OrdinalIgnoreCase);
+    }
+
     private static bool TryGetProductSegments(string path, out string[] segments)
     {
         segments = path.Split('/', StringSplitOptions.RemoveEmptyEntries);

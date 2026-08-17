@@ -12,6 +12,7 @@ builder.Services
     .ValidateOnStart();
 builder.Services.AddSingleton<IValidateOptions<DropShieldOptions>, DropShieldOptionsValidator>();
 builder.Services.AddSingleton<ClientIdentityProvider>();
+builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<TrafficMetrics>();
 builder.Services.AddTransient<DemoStoreForwarder>();
 builder.Services.AddHttpClient<IDemoStoreClient, DemoStoreClient>((services, client) =>
@@ -26,6 +27,7 @@ builder.Services.AddSingleton<
     TrafficPolicyOptionsSetup>();
 
 var app = builder.Build();
+_ = app.Services.GetRequiredService<TrafficMetrics>();
 
 app.UseRouting();
 app.UseMiddleware<TrafficMetricsMiddleware>();

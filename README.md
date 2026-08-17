@@ -15,11 +15,11 @@ This project must not be used to send abusive traffic to third-party websites. P
 
 ## Current phase
 
-**Phase 3 — Traffic Policy / Rate Limiting**
+**Phase 4 — Observability**
 
-The Phase 1 foundation and Phase 2 unprotected baseline remain reproducible. Phase 3 makes `DropShield.Api` a protected local gateway: it forwards only explicit DemoStore routes, applies per-client traffic limits plus an aggregate protected-stock limit, and returns HTTP 429 without forwarding denied requests.
+The Phase 1 foundation, Phase 2 unprotected baseline, and Phase 3 protection path remain reproducible. Phase 4 adds bounded in-memory operational metrics for traffic, known routes, failures, status outcomes, latency, protected stock, and recent rates through a development/test-only endpoint.
 
-Phase 3 is traffic-rate control only. Bot classification, waiting rooms, queueing, distributed state, signed admission, inventory reservation, Adobe Commerce integration, and edge-provider integration have not been implemented.
+Phase 4 observes the existing policy; it does not change rate-limit decisions. Bot classification, waiting rooms, queueing, distributed state, signed admission, inventory reservation, adaptive admission, Adobe Commerce integration, and edge-provider integration have not been implemented.
 
 ## Architecture direction
 
@@ -42,7 +42,7 @@ See:
 
 ## Projects
 
-- `src/DropShield.Api` — protected local entry point with explicit origin forwarding and Phase 3 traffic policy.
+- `src/DropShield.Api` — protected local entry point with explicit origin forwarding, Phase 3 traffic policy, and Phase 4 in-memory observability.
 - `src/DropShield.DemoStore` — synthetic ecommerce backend with health, product, stock, cart, and checkout endpoints.
 - `tests/DropShield.Tests` — xUnit integration tests for both APIs.
 - `load-tests` — localhost-only k6 smoke, customer, flash-crowd, aggressive-polling, and mixed-drop scenarios.
@@ -128,6 +128,22 @@ docker run --rm -e TARGET_BASE_URL=http://host.docker.internal:5257 -e PROTECTED
 ```
 
 See [`docs/PHASE3_RATE_LIMITING.md`](docs/PHASE3_RATE_LIMITING.md) for architecture and policy behavior, and [`docs/PROTECTED_PERFORMANCE.md`](docs/PROTECTED_PERFORMANCE.md) for measured before/after results.
+
+## Phase 4 — Internal observability
+
+With DropShield running in Development, inspect the aggregate JSON snapshot:
+
+```powershell
+Invoke-RestMethod http://localhost:5257/internal/metrics
+```
+
+Reset the current collection for a controlled demonstration:
+
+```powershell
+Invoke-WebRequest -Method Post http://localhost:5257/internal/metrics/reset
+```
+
+These endpoints return 404 in Production or when internal metrics are disabled. They expose no client identifiers or request data. See [`docs/PHASE4_OBSERVABILITY.md`](docs/PHASE4_OBSERVABILITY.md) for the schema, metric definitions, bounded implementation, and attribution limits.
 
 ## Docker
 

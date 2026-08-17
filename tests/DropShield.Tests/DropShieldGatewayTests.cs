@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using DropShield.Api.Traffic;
 using DropShield.Tests.Support;
 
 namespace DropShield.Tests;
@@ -181,13 +182,14 @@ public sealed class DropShieldGatewayTests
         await SendAsync(client, HttpMethod.Get, StockPath, "counted-client");
         await SendAsync(client, HttpMethod.Get, StockPath, "counted-client");
 
-        var metrics = await client.GetFromJsonAsync<MetricsResponse>("/internal/metrics");
+        var metrics = await client.GetFromJsonAsync<TrafficMetricsSnapshot>("/internal/metrics");
 
         Assert.Equal(2, factory.Origin.GetRequestCount(StockPath));
         Assert.NotNull(metrics);
-        Assert.Equal(3, metrics.Routes["stock"].Incoming);
-        Assert.Equal(2, metrics.Routes["stock"].Forwarded);
-        Assert.Equal(1, metrics.Routes["stock"].RateLimited);
+        Assert.Equal(3, metrics.Routes["stock"].Traffic.Incoming);
+        Assert.Equal(2, metrics.Routes["stock"].Traffic.Forwarded);
+        Assert.Equal(1, metrics.Routes["stock"].Traffic.RateLimited);
+        Assert.Equal(1, metrics.StatusCodes.RateLimited429);
     }
 
     [Fact]
@@ -221,6 +223,101 @@ public sealed class DropShieldGatewayTests
         Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
         Assert.NotNull(body);
         Assert.Equal("upstream_unavailable", body.Error);
+
+        var metrics = await client.GetFromJsonAsync<TrafficMetricsSnapshot>("/internal/metrics");
+
+        Assert.NotNull(metrics);
+        Assert.Equal(1, metrics.Traffic.UpstreamFailures);
+        Assert.Equal(1, metrics.Routes["products"].Traffic.UpstreamFailures);
+        Assert.Equal(1, metrics.StatusCodes.ServerError5xx);
+        Assert.Equal(1, metrics.StatusCodes.BadGateway502);
+    }
+
+    [Fact]
+    public async Task MetricsEndpoint_ReportsTrafficRoutesLatencyAndRecentRates()
+    {
+        using var factory = new DropShieldApiFactory();
+        using var client = factory.CreateClient();
+
+        await client.GetAsync("/api/products");
+        await SendAsync(client, HttpMethod.Get, StockPath, "observable-client");
+
+        var metrics = await client.GetFromJsonAsync<TrafficMetricsSnapshot>("/internal/metrics");
+
+        Assert.NotNull(metrics);
+        Assert.True(metrics.StartedAt <= DateTimeOffset.UtcNow);
+        Assert.Equal(2, metrics.Traffic.Incoming);
+        Assert.Equal(2, metrics.Traffic.Forwarded);
+        Assert.Equal(0, metrics.Traffic.RateLimited);
+        Assert.Equal(100, metrics.Traffic.ForwardingPercentage);
+        Assert.Equal(1, metrics.Routes["products"].Traffic.Incoming);
+        Assert.Equal(0, metrics.Routes["product"].Traffic.Incoming);
+        Assert.Equal(1, metrics.Routes["stock"].Traffic.Incoming);
+        Assert.Equal("GET /api/products/{productId}/stock", metrics.Routes["stock"].RouteTemplate);
+        Assert.Equal(1, metrics.ProtectedStock.Incoming);
+        Assert.Equal(2, metrics.StatusCodes.Success2xx);
+        Assert.Equal(2, metrics.LatencyMilliseconds.EndToEnd.Count);
+        Assert.Equal(2, metrics.LatencyMilliseconds.DropShieldProcessing.Count);
+        Assert.Equal(2, metrics.LatencyMilliseconds.Origin.Count);
+        Assert.NotNull(metrics.LatencyMilliseconds.EndToEnd.P95);
+        Assert.True(metrics.RecentRates.IncomingPerSecond > 0);
+        Assert.True(metrics.RecentRates.ForwardedPerSecond > 0);
+    }
+
+    [Fact]
+    public async Task MetricsEndpoint_DoesNotExposeSyntheticClientIdentity()
+    {
+        const string sensitiveTestIdentity = "private-test-client-49381";
+        using var factory = new DropShieldApiFactory();
+        using var client = factory.CreateClient();
+
+        await SendAsync(client, HttpMethod.Get, StockPath, sensitiveTestIdentity);
+        var json = await client.GetStringAsync("/internal/metrics");
+
+        Assert.DoesNotContain(sensitiveTestIdentity, json, StringComparison.Ordinal);
+        Assert.DoesNotContain("X-DropShield-Test-Client", json, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task RateLimitReasons_UseOnlyAccurateAttribution()
+    {
+        using var factory = new DropShieldApiFactory();
+        using var client = factory.CreateClient();
+
+        await SendAsync(client, HttpMethod.Get, StockPath, "reason-stock");
+        await SendAsync(client, HttpMethod.Get, StockPath, "reason-stock");
+        await SendAsync(client, HttpMethod.Get, StockPath, "reason-stock");
+        await SendAsync(client, HttpMethod.Post, "/api/cart", "reason-cart");
+        await SendAsync(client, HttpMethod.Post, "/api/cart", "reason-cart");
+        await SendAsync(client, HttpMethod.Post, "/api/cart", "reason-cart");
+
+        var metrics = await client.GetFromJsonAsync<TrafficMetricsSnapshot>("/internal/metrics");
+
+        Assert.NotNull(metrics);
+        Assert.Equal(1, metrics.RateLimitReasons.ProtectedStockChained);
+        Assert.Equal(1, metrics.RateLimitReasons.PerClient);
+        Assert.Equal(0, metrics.RateLimitReasons.Unattributed);
+    }
+
+    [Fact]
+    public async Task MetricsReset_ClearsCollectionWithoutChangingInstanceStart()
+    {
+        using var factory = new DropShieldApiFactory();
+        using var client = factory.CreateClient();
+
+        await client.GetAsync("/api/products");
+        var before = await client.GetFromJsonAsync<TrafficMetricsSnapshot>("/internal/metrics");
+        var reset = await client.PostAsync("/internal/metrics/reset", content: null);
+        var after = await client.GetFromJsonAsync<TrafficMetricsSnapshot>("/internal/metrics");
+
+        Assert.Equal(HttpStatusCode.NoContent, reset.StatusCode);
+        Assert.NotNull(before);
+        Assert.NotNull(after);
+        Assert.Equal(before.StartedAt, after.StartedAt);
+        Assert.True(after.CollectionStartedAt >= before.CollectionStartedAt);
+        Assert.Equal(0, after.Traffic.Incoming);
+        Assert.Equal(0, after.LatencyMilliseconds.EndToEnd.Count);
+        Assert.Equal(0, after.RecentRates.IncomingPerSecond);
     }
 
     [Fact]
@@ -235,8 +332,10 @@ public sealed class DropShieldGatewayTests
         using var client = factory.CreateClient();
 
         var response = await client.GetAsync("/internal/metrics");
+        var resetResponse = await client.PostAsync("/internal/metrics/reset", content: null);
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, resetResponse.StatusCode);
     }
 
     private static async Task<HttpResponseMessage> SendAsync(
@@ -258,9 +357,4 @@ public sealed class DropShieldGatewayTests
 
     private sealed record GatewayErrorResponse(string Error, string Message);
 
-    private sealed record MetricsResponse(
-        TrafficCounts Total,
-        Dictionary<string, TrafficCounts> Routes);
-
-    private sealed record TrafficCounts(long Incoming, long Forwarded, long RateLimited);
 }

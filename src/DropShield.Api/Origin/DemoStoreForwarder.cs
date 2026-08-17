@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using DropShield.Api.Models;
 using DropShield.Api.Traffic;
 
@@ -13,7 +14,24 @@ public sealed class DemoStoreForwarder(
         TrafficRoute route,
         CancellationToken cancellationToken)
     {
-        metrics.RecordForwarded(route);
+        var observation = context.Features.Get<TrafficRequestObservation>();
+        var isProtectedStock = observation?.IsProtectedStock ?? false;
+        metrics.RecordForwarded(route, isProtectedStock);
+        var originStartedTimestamp = Stopwatch.GetTimestamp();
+        var originDurationRecorded = false;
+
+        void RecordOriginDuration()
+        {
+            if (originDurationRecorded)
+            {
+                return;
+            }
+
+            var originDuration = Stopwatch.GetElapsedTime(originStartedTimestamp);
+            metrics.RecordOriginLatency(originDuration);
+            observation?.SetOriginDuration(originDuration);
+            originDurationRecorded = true;
+        }
 
         try
         {
@@ -30,25 +48,45 @@ public sealed class DemoStoreForwarder(
             }
 
             await originResponse.Content.CopyToAsync(context.Response.Body, cancellationToken);
+            RecordOriginDuration();
+
+            if ((int)originResponse.StatusCode >= StatusCodes.Status500InternalServerError)
+            {
+                metrics.RecordUpstreamFailure(route, isProtectedStock);
+            }
+
+            logger.LogDebug(
+                "Forwarded {Method} {TrafficRoute} with origin status {StatusCode}",
+                context.Request.Method,
+                route,
+                (int)originResponse.StatusCode);
         }
         catch (HttpRequestException exception)
         {
+            RecordOriginDuration();
+            metrics.RecordUpstreamFailure(route, isProtectedStock);
             logger.LogWarning(
                 exception,
-                "DemoStore origin request failed for {Method} {Path}",
+                "DemoStore origin request failed for {Method} {TrafficRoute}",
                 context.Request.Method,
-                context.Request.Path);
+                route);
             await WriteBadGatewayAsync(context, cancellationToken);
         }
         catch (OperationCanceledException exception)
             when (!context.RequestAborted.IsCancellationRequested)
         {
+            RecordOriginDuration();
+            metrics.RecordUpstreamFailure(route, isProtectedStock);
             logger.LogWarning(
                 exception,
-                "DemoStore origin request timed out for {Method} {Path}",
+                "DemoStore origin request timed out for {Method} {TrafficRoute}",
                 context.Request.Method,
-                context.Request.Path);
+                route);
             await WriteBadGatewayAsync(context, cancellationToken);
+        }
+        finally
+        {
+            RecordOriginDuration();
         }
     }
 

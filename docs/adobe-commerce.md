@@ -21,6 +21,14 @@ deployment should still restrict direct network access to the Commerce origin wh
 infrastructure permits; the connector is application-level defence in depth, not a replacement
 for that.
 
+**Coverage limitation — read this before assuming full checkout coverage.** The connector
+protects checkout by plugging `CartManagementInterface::placeOrder`, the call REST, GraphQL, and
+storefront one-page checkout all converge on. Multi-shipment/multi-address checkout flows, and
+any custom checkout extension, that place an order through a different path bypass this plugin
+entirely and are **not protected** by the current connector. Treat any such flow as unprotected
+until independently verified. See [Extension points](#extension-points) below for the full
+detail.
+
 ## Origin assertion v1
 
 A DropShield-internal, short-lived, HMAC-SHA256-signed proof that a protected cart/checkout

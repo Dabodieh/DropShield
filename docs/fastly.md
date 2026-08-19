@@ -1,14 +1,14 @@
 # Fastly reference integration
 
 This is a reference Fastly integration for Adobe Commerce deployments. Fastly is part of
-Adobe Commerce's documented cloud architecture; Hamleys' current edge provider has not been
-independently confirmed. Adobe documents Fastly as the standard, required edge for Adobe
-Commerce on Cloud Infrastructure staging and production ([Adobe Commerce custom VCL
+Adobe Commerce's documented cloud architecture; no specific retailer's current edge provider is
+claimed or confirmed by this document. Adobe documents Fastly as the standard, required edge for
+Adobe Commerce on Cloud Infrastructure staging and production ([Adobe Commerce custom VCL
 snippets](https://experienceleague.adobe.com/en/docs/commerce-on-cloud/user-guide/cdn/custom-vcl-snippets/fastly-vcl-custom-snippets),
 [Fastly rate limiting](https://www.fastly.com/documentation/guides/concepts/rate-limiting/)),
 which is why Fastly is the first reference adapter — see
 [ADR-001](adr/ADR-001-edge-provider-neutral.md). See also
-[Hamleys platform research](hamleys-platform-research.md) for what is and is not established
+[Platform research](platform-research.md) for what is and is not established
 about any specific retailer's edge routing.
 
 Snippets and config: [integrations/fastly](../integrations/fastly). This document is the design

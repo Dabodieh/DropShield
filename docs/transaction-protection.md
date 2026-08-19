@@ -60,6 +60,17 @@ proof correctly returns a replay conflict rather than double-applying the mutati
 that case for the client would need idempotency keys and stored-result semantics, which
 DropShield doesn't implement.
 
+**Known limitation — proof consumption precedes origin completion.** Because the action proof
+is atomically consumed before the origin request is made (not after it succeeds), a *transient*
+origin failure — a timeout, a 5xx, a dropped connection — also burns the proof, even though no
+mutation reached the origin. The shopper must obtain a new admission and action proof to retry,
+rather than the same proof simply being retried. This is an availability/UX limitation, not a
+security defect: it does not allow replay, does not allow bypassing admission, and does not
+allow a stale or forged proof to succeed. A production design carrying real purchase risk would
+likely want a more sophisticated retry/compensation strategy — for example a pending/committed
+reservation state with idempotency-keyed origin calls, so a retried request can resume rather
+than restart. That is future design work, not implemented here.
+
 ## Inventory reservation
 
 DropShield maintains a configurable synthetic reservation pool for the protected drop. It is

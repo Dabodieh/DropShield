@@ -75,7 +75,7 @@ and never stored in Redis.
 
 The boxes are logical responsibilities, not necessarily separate physical hops or products.
 This diagram does not represent any specific retailer's private network topology; where
-retailer-specific research informs it, see [Hamleys platform research](hamleys-platform-research.md).
+public retailer research informs it, see [Platform research](platform-research.md).
 
 ## Protection domains
 
@@ -164,7 +164,7 @@ architecture.
 
 ## Related records
 
-- [Hamleys platform research](hamleys-platform-research.md) — retailer-specific evidence
+- [Platform research](platform-research.md) — public retailer-research evidence
   boundary used as one input to this architecture.
 - [ADR-001: Edge-provider-neutral core](adr/ADR-001-edge-provider-neutral.md)
 - [ADR-002: Adobe Commerce as first planned target](adr/ADR-002-adobe-commerce-target.md)

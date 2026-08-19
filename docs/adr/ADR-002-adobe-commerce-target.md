@@ -10,9 +10,9 @@ Accepted
 
 ## Context
 
-DropShield needs an initial real ecommerce platform target to make future protection contracts concrete. Public SQLI and Krish TechnoLabs case studies establish Adobe Commerce / Magento 2 as the relevant platform for the Hamleys use case. They also document an ecosystem that includes Algolia search, Microsoft Dynamics 365, and several commerce integrations.
+DropShield needs an initial real ecommerce platform target to make future protection contracts concrete. Public implementation-partner case studies for a representative high-demand retailer scenario establish Adobe Commerce / Magento 2 as a relevant platform target. They also document an ecosystem that typically includes Algolia search, Microsoft Dynamics 365, and several commerce integrations (see [platform research](../platform-research.md)).
 
-The existing .NET proof of concept is already a safe synthetic harness. Its language does not need to match Magento/PHP because it is not intended to reproduce Hamleys' private implementation.
+The existing .NET proof of concept is already a safe synthetic harness. Its language does not need to match Magento/PHP because it is not intended to reproduce any specific retailer's private implementation.
 
 ## Decision
 
@@ -24,7 +24,7 @@ The concrete process boundary, protocol, deployment model, packaging, and PHP/.N
 
 ## Constraints
 
-- Do not guess or pin a Hamleys Magento patch version from public evidence.
+- Do not guess or pin a specific retailer's Magento patch version from public evidence.
 - Do not assume every storefront request synchronously calls D365 or any other integration.
 - Distinguish Algolia search/discovery traffic from Adobe Commerce transaction traffic.
 - Apply volumetric controls at the edge where possible; do not rely on a Magento module as the first rejection point.
@@ -44,11 +44,11 @@ Rejected. A Magento integration may contain PHP, but no evidence requires the en
 
 ### Choose a different first ecommerce platform
 
-Deferred. Other integrations can follow, but Adobe Commerce has the strongest direct relevance to the Hamleys use case.
+Deferred. Other integrations can follow, but Adobe Commerce has the strongest direct relevance to the representative high-demand retailer scenario informing this work.
 
-### Model the .NET DemoStore as Hamleys
+### Model the .NET DemoStore as a specific real retailer
 
-Rejected. The DemoStore is a controlled test harness, not a replica of Hamleys' technology, dependencies, data model, or network topology.
+Rejected. The DemoStore is a controlled test harness, not a replica of any specific retailer's technology, dependencies, data model, or network topology.
 
 ## Consequences
 
@@ -67,7 +67,7 @@ Rejected. The DemoStore is a controlled test harness, not a replica of Hamleys' 
 
 ### Risks and mitigations
 
-- **Overfitting to public Hamleys evidence:** inferred topology could enter code as fact. Mitigation: use the research classifications and validate with retailer telemetry and authorised configuration access.
+- **Overfitting to public retailer-research evidence:** inferred topology could enter code as fact. Mitigation: use the research classifications and validate with retailer telemetry and authorised configuration access.
 - **Duplicating Adobe/Fastly controls:** DropShield could add redundant enforcement. Mitigation: capability inventory and orchestration-first design before implementation.
 - **Late origin rejection:** an application module could become the primary limiter. Mitigation: preserve the two protection domains and require an edge enforcement plan for volumetric controls.
 - **Tight coupling to a Magento version:** APIs may change across releases. Mitigation: establish a supported-version matrix during the future integration design.
@@ -81,12 +81,12 @@ No migration is required. Keep `DropShield.Api`, `DropShield.DemoStore`, and `Dr
 - Future Adobe-specific code remains outside provider-neutral core policy models.
 - The integration design documents supported Adobe Commerce versions and lifecycle seams before implementation.
 - The DemoStore remains runnable without Adobe Commerce or third-party services.
-- No production Hamleys URL appears in automated tests, load tests, fuzzers, scrapers, or endpoint-discovery tooling.
+- No production retailer URL appears in automated tests, load tests, fuzzers, scrapers, or endpoint-discovery tooling.
 - Edge and application enforcement responsibilities remain explicit.
 
 ## Related decisions
 
 - [ADR-001: Edge-provider-neutral core](ADR-001-edge-provider-neutral.md)
 - [DropShield architecture direction](../ARCHITECTURE.md)
-- [Hamleys platform research](../hamleys-platform-research.md)
+- [Platform research](../platform-research.md)
 

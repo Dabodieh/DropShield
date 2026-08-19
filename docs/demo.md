@@ -19,11 +19,11 @@ Run against the local implementation, this demo shows that DropShield:
 
 ## What this does not prove
 
-- That Hamleys, or any other retailer, uses this architecture.
-- That Hamleys currently uses Fastly. See [docs/fastly.md](fastly.md).
-- That Hamleys' actual production bottleneck matches the synthetic DemoStore's stock-lookup
-  delay.
-- That DropShield has been tested against Hamleys or any other retailer's systems.
+- That any specific retailer uses this architecture.
+- That any specific retailer currently uses Fastly. See [docs/fastly.md](fastly.md).
+- That any specific retailer's actual production bottleneck matches the synthetic DemoStore's
+  stock-lookup delay.
+- That DropShield has been tested against any retailer's production systems.
 - That the synthetic throughput numbers below predict exact production performance.
 - That behavioural scoring identifies bots with certainty — it is a short-lived, explainable
   risk signal, not a bot-detection claim, and is not exercised by this demo (see

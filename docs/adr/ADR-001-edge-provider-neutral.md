@@ -12,7 +12,7 @@ Accepted
 
 DropShield is intended to protect ecommerce launches before excessive or abusive traffic consumes expensive origin resources. Effective enforcement will often depend on capabilities exposed by an existing CDN, WAF, or edge provider.
 
-The exact provider varies by retailer. For Hamleys, public evidence strongly confirms Adobe Commerce / Magento 2, while exact current production edge routing has not been conclusively established. Adobe documents Fastly as standard and required in Adobe Commerce on Cloud Infrastructure staging and production architecture, making Fastly likely where that standard architecture applies. This is not proof of Hamleys' exact routing.
+The exact provider varies by retailer. For a representative high-demand retailer running Adobe Commerce / Magento 2, exact current production edge routing has not been conclusively established from public evidence alone. Adobe documents Fastly as standard and required in Adobe Commerce on Cloud Infrastructure staging and production architecture, making Fastly likely where that standard architecture applies. This is not proof of any specific retailer's exact routing.
 
 Baking a Cloudflare-specific model into the core would encode an unsupported assumption and constrain other deployments. Baking Fastly directly into the core would turn a strong platform inference into unnecessary core coupling.
 
@@ -38,17 +38,17 @@ The provider abstraction must expose capabilities rather than pretend every prov
 - Provider adapters must preserve deny-by-default behavior for protection policies they claim to enforce.
 - Secrets, service identifiers, and provider credentials must not enter shared core configuration or source control.
 - Provider neutrality must not become a lowest-common-denominator design that hides material capability differences.
-- No Hamleys-specific adapter work is authorised by this decision.
+- No retailer-specific adapter work is authorised by this decision.
 
 ## Alternatives considered
 
 ### Cloudflare-native core
 
-Rejected because Cloudflare has not been confirmed as Hamleys' authoritative CDN, reverse proxy, or edge runtime. It would also constrain non-Cloudflare retailers.
+Rejected because Cloudflare has not been confirmed as any specific target retailer's authoritative CDN, reverse proxy, or edge runtime. It would also constrain non-Cloudflare retailers.
 
 ### Fastly-native core
 
-Rejected as a core architecture choice. Fastly is the strongest first-provider candidate where standard Adobe Commerce Cloud architecture applies, but Hamleys-specific routing is unconfirmed and other target retailers may use different providers.
+Rejected as a core architecture choice. Fastly is the strongest first-provider candidate where standard Adobe Commerce Cloud architecture applies, but retailer-specific routing is unconfirmed and other target retailers may use different providers.
 
 ### Origin-only protection in Adobe Commerce
 
@@ -59,7 +59,7 @@ Rejected as the primary traffic-control architecture because Magento/PHP and ori
 ### Positive
 
 - Retailer deployments can integrate with their existing edge/CDN provider.
-- The core policy model is not constrained by an unsupported Hamleys assumption.
+- The core policy model is not constrained by an unsupported retailer-specific assumption.
 - Provider capabilities can be reused and orchestrated instead of duplicated.
 - Tests can use provider-neutral fakes without external edge accounts.
 
@@ -91,5 +91,5 @@ No code migration is required. Phase 1 contains no provider integration. Future 
 
 - [ADR-002: Adobe Commerce as the first planned ecommerce target](ADR-002-adobe-commerce-target.md)
 - [DropShield architecture direction](../ARCHITECTURE.md)
-- [Hamleys platform research](../hamleys-platform-research.md)
+- [Platform research](../platform-research.md)
 

@@ -6,7 +6,7 @@ This directory contains k6 traffic-pattern simulations that can target either th
 
 Scripts default to `http://localhost:5058`. `TARGET_BASE_URL` accepts only `localhost`, `127.0.0.1`, `[::1]`, or the Docker Desktop host alias `host.docker.internal`, with an optional port. Paths, credentials, query strings, fragments, unsupported schemes, and every other hostname are rejected during script initialisation.
 
-Never weaken this guard to target Hamleys, another retailer, or third-party infrastructure. Only run these tests on localhost or infrastructure that you own and have deliberately placed under test.
+Never weaken this guard to target a real retailer or any third-party infrastructure. Only run these tests on localhost or infrastructure that you own and have deliberately placed under test.
 
 ## Requirements and target startup
 

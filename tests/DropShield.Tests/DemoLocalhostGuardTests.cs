@@ -26,7 +26,7 @@ public sealed class DemoLocalhostGuardTests
     }
 
     [Theory]
-    [InlineData("http://hamleys.com")]
+    [InlineData("http://example.org")]
     [InlineData("https://example.com")]
     [InlineData("http://8.8.8.8")]
     [InlineData("http://evil.localhost.attacker.com")]

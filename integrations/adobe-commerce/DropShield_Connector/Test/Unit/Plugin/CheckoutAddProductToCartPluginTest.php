@@ -27,6 +27,8 @@ final class CheckoutAddProductToCartPluginTest extends TestCase
         $dropResolver->method('getDropId')->willReturn('configured-drop-id');
 
         $request = $this->createMock(HttpRequest::class);
+        $request->method('getPathInfo')->willReturn('/checkout/cart/add');
+        $request->method('getMethod')->willReturn('POST');
         $guard = $this->createMock(OriginAssertionGuard::class);
         $guard->expects(self::once())
             ->method('requireValidAssertion')

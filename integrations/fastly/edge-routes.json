@@ -10,6 +10,8 @@
     "POST /api/action-proofs/{action}",
     "POST /graphql",
     "POST /checkout/cart/add",
+    "POST /rest[/default]/V1/guest-carts/{cartId}/items",
+    "POST /rest[/default]/V1/guest-carts/{cartId}/payment-information",
     "GET /health"
   ],
   "deniedAtEdge": [
@@ -17,7 +19,8 @@
   ],
   "notes": [
     "POST /graphql is routed to DropShield unconditionally: Fastly VCL cannot distinguish a protected addProductsToCart mutation from ordinary GraphQL traffic on the same shared endpoint, so DropShield.Api's GraphQlCartMutationInspector makes that decision after routing, not the edge.",
-    "The cart/checkout/graphqlCartAdd/storefrontCartAdd subset of dropshieldRoutes must stay byte-identical to the route templates in contracts/origin-assertion-v1.json.",
+    "The cart/checkout/graphqlCartAdd/storefrontCartAdd and Commerce REST mutation subset of dropshieldRoutes must stay byte-identical to the route templates in contracts/origin-assertion-v1.json.",
+    "The Commerce REST templates represent a strict VCL allow-list: the optional default store code and opaque cart identifier are matched at the edge, then DropShield.Api binds its origin assertion to the real incoming path.",
     "GET /health is routed to DropShield so edge health checks reach the same instance origin traffic does; it is not a protected-mutation route and carries no origin assertion."
   ]
 }

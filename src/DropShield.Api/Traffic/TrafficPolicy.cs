@@ -34,7 +34,8 @@ public static class TrafficPolicy
             var reason = route switch
             {
                 TrafficRoute.Cart or TrafficRoute.Checkout or TrafficRoute.ActionProof
-                    or TrafficRoute.StorefrontCartAdd or TrafficRoute.GraphQlCartAdd =>
+                    or TrafficRoute.StorefrontCartAdd or TrafficRoute.GraphQlCartAdd
+                    or TrafficRoute.CommerceRestCart or TrafficRoute.CommerceRestCheckout =>
                     RateLimitReason.PerClient,
                 TrafficRoute.Stock when isProtectedStock =>
                     RateLimitReason.ProtectedStockChained,
@@ -140,6 +141,8 @@ public static class TrafficPolicy
                 options.Policies.Stock,
             TrafficRoute.Cart => options.Policies.Cart,
             TrafficRoute.Checkout => options.Policies.Checkout,
+            TrafficRoute.CommerceRestCart => options.Policies.Cart,
+            TrafficRoute.CommerceRestCheckout => options.Policies.Checkout,
             TrafficRoute.StorefrontCartAdd => options.Policies.Cart,
             TrafficRoute.GraphQlCartAdd when context.Features.Get<TrafficRequestObservation>()
                     ?.IsProtectedGraphQlCartMutation ?? false =>

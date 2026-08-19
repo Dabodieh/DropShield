@@ -30,6 +30,8 @@ final class QuoteGraphQlAddProductsToCartPluginTest extends TestCase
         $dropResolver->method('getDropId')->willReturn('configured-drop-id');
 
         $request = $this->createMock(HttpRequest::class);
+        $request->method('getPathInfo')->willReturn('/graphql');
+        $request->method('getMethod')->willReturn('POST');
         $guard = $this->createMock(OriginAssertionGuard::class);
         $guard->expects(self::once())
             ->method('requireValidAssertion')
@@ -73,6 +75,8 @@ final class QuoteGraphQlAddProductsToCartPluginTest extends TestCase
         $dropResolver->method('getDropId')->willReturn('configured-drop-id');
 
         $request = $this->createMock(HttpRequest::class);
+        $request->method('getPathInfo')->willReturn('/graphql');
+        $request->method('getMethod')->willReturn('POST');
         $guard = $this->createMock(OriginAssertionGuard::class);
         $guard->expects(self::once())->method('requireValidAssertion');
 

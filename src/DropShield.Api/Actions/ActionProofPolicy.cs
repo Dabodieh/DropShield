@@ -33,15 +33,16 @@ public static class ActionProofPolicy
                 ?? false;
         }
 
-        return false;
+        return context.Features.Get<TrafficRequestObservation>()?.ProtectedAction is not null;
     }
 
     public static ActionKind GetMutationAction(HttpContext context)
     {
         var request = context.Request;
-        return request.Path.Equals("/api/checkout", StringComparison.OrdinalIgnoreCase)
-            ? ActionKind.Checkout
-            : ActionKind.Cart;
+        return context.Features.Get<TrafficRequestObservation>()?.ProtectedAction ??
+               (request.Path.Equals("/api/checkout", StringComparison.OrdinalIgnoreCase)
+                   ? ActionKind.Checkout
+                   : ActionKind.Cart);
     }
 
     public static bool TryGetAction(HttpRequest request, out ActionKind action)

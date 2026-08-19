@@ -14,8 +14,11 @@
 // the response reaches the client.
 
 if (req.url ~ "^/api/" ||
-    req.url ~ "^/graphql$" ||
-    req.url ~ "^/checkout/cart/add$" ||
+    (req.method == "POST" && (
+        req.url ~ "^/graphql(?:[?].*)?$" ||
+        req.url ~ "^/checkout/cart/add(?:[?].*)?$" ||
+        req.url ~ "^/rest/(?:default/)?V1/guest-carts/[A-Za-z0-9_-]{1,128}/(?:items|payment-information)(?:[?].*)?$"
+    )) ||
     req.url ~ "^/health$") {
 
     set req.http.Fastly-DropShield-Edge = "1";

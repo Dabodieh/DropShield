@@ -144,8 +144,30 @@ app.MapGet(
 
 app.MapGet(
     "/api/products/{productId}/stock",
-    (HttpContext context, DemoStoreForwarder forwarder, CancellationToken cancellationToken) =>
-        forwarder.ForwardAsync(context, TrafficRoute.Stock, cancellationToken));
+    async (
+        string productId,
+        HttpContext context,
+        DemoStoreForwarder forwarder,
+        IOptions<DropShieldOptions> options,
+        CancellationToken cancellationToken) =>
+    {
+        // Commerce has no equivalent to the demonstration stock endpoint. Keep this
+        // DropShield-owned admission entry point local rather than proxying a made-up Magento
+        // route; its reservation policy remains the capacity authority for this narrow mode.
+        if (options.Value.OriginMode == OriginMode.AdobeCommerce &&
+            string.Equals(
+                productId,
+                options.Value.Admission.ProtectedProduct,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            await context.Response.WriteAsJsonAsync(
+                new { productId, available = options.Value.InventoryReservation.InitialStock },
+                cancellationToken);
+            return;
+        }
+
+        await forwarder.ForwardAsync(context, TrafficRoute.Stock, cancellationToken);
+    });
 
 app.MapPost(
     "/api/cart",
@@ -166,6 +188,30 @@ app.MapPost(
     "/checkout/cart/add",
     (HttpContext context, DemoStoreForwarder forwarder, CancellationToken cancellationToken) =>
         forwarder.ForwardAsync(context, TrafficRoute.StorefrontCartAdd, cancellationToken));
+
+app.MapPost(
+    "/rest/V1/guest-carts/{cartId}/items",
+    (HttpContext context, DemoStoreForwarder forwarder, IOptions<DropShieldOptions> options,
+        CancellationToken cancellationToken) =>
+        ForwardCommerceAsync(context, forwarder, options.Value, cancellationToken));
+
+app.MapPost(
+    "/rest/default/V1/guest-carts/{cartId}/items",
+    (HttpContext context, DemoStoreForwarder forwarder, IOptions<DropShieldOptions> options,
+        CancellationToken cancellationToken) =>
+        ForwardCommerceAsync(context, forwarder, options.Value, cancellationToken));
+
+app.MapPost(
+    "/rest/V1/guest-carts/{cartId}/payment-information",
+    (HttpContext context, DemoStoreForwarder forwarder, IOptions<DropShieldOptions> options,
+        CancellationToken cancellationToken) =>
+        ForwardCommerceAsync(context, forwarder, options.Value, cancellationToken));
+
+app.MapPost(
+    "/rest/default/V1/guest-carts/{cartId}/payment-information",
+    (HttpContext context, DemoStoreForwarder forwarder, IOptions<DropShieldOptions> options,
+        CancellationToken cancellationToken) =>
+        ForwardCommerceAsync(context, forwarder, options.Value, cancellationToken));
 
 app.MapGet("/internal/inventory", async (IInventoryReservationState state, IOptions<DropShieldOptions> options, IHostEnvironment environment, CancellationToken cancellationToken) =>
     !InternalDiagnosticsAreAvailable(options.Value, environment)
@@ -219,6 +265,22 @@ static bool InternalDiagnosticsAreAvailable(
     IHostEnvironment environment) =>
     options.InternalMetrics.Enabled &&
     (environment.IsDevelopment() || environment.IsEnvironment("Testing"));
+
+static async Task ForwardCommerceAsync(
+    HttpContext context,
+    DemoStoreForwarder forwarder,
+    DropShieldOptions options,
+    CancellationToken cancellationToken)
+{
+    if (options.OriginMode != OriginMode.AdobeCommerce ||
+        !CommerceRouteMatcher.TryMatch(context.Request, out var match))
+    {
+        context.Response.StatusCode = StatusCodes.Status404NotFound;
+        return;
+    }
+
+    await forwarder.ForwardAsync(context, match.TrafficRoute, cancellationToken);
+}
 
 static async Task<IResult> IssueActionProofAsync(
     HttpContext context,

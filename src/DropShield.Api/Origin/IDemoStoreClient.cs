@@ -7,5 +7,12 @@ public interface IDemoStoreClient
         string path,
         HttpRequest sourceRequest,
         CancellationToken cancellationToken,
-        (string HeaderName, string Value)? originAssertionHeader = null);
+        (string HeaderName, string Value)? originAssertionHeader = null,
+        OriginForwardingProfile profile = OriginForwardingProfile.DemoStore);
+}
+
+public enum OriginForwardingProfile
+{
+    DemoStore,
+    AdobeCommerce,
 }

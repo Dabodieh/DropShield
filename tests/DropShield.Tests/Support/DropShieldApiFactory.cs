@@ -85,6 +85,8 @@ internal sealed class DropShieldApiFactory(
         ["DropShield:StateProvider"] = "InMemory",
         ["DropShield:OriginBaseUrl"] = "http://localhost:5058",
         ["DropShield:OriginTimeoutSeconds"] = "10",
+        ["DropShield:OriginMode"] = "DemoStore",
+        ["DropShield:AdobeCommerce:MaximumProtectedRequestBodyBytes"] = "262144",
         ["DropShield:ProtectedProducts:0"] = "pokemon-etb",
         ["DropShield:SyntheticClientIdentity:Enabled"] = "true",
         ["DropShield:SyntheticClientIdentity:HeaderName"] = "X-DropShield-Test-Client",

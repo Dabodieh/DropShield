@@ -41,6 +41,8 @@ Adobe Commerce's existing Fastly configuration, untouched:
 | `POST /api/action-proofs/{action}` | yes |
 | `POST /graphql` | yes, unconditionally (see GraphQL below) |
 | `POST /checkout/cart/add` | yes |
+| `POST /rest[/default]/V1/guest-carts/{cartId}/items` | yes |
+| `POST /rest[/default]/V1/guest-carts/{cartId}/payment-information` | yes |
 | `GET /health` | yes |
 | `/internal/*` | denied at the edge (see Internal diagnostics below) |
 | everything else | left to Adobe Commerce's existing Fastly config |
@@ -56,8 +58,9 @@ assertion route cannot silently diverge.
 and cart-add mutations for both protected and ordinary SKUs all arrive on the same path. VCL
 routing operates on HTTP-level request information — method, path, headers — and Fastly does
 not parse GraphQL operation semantics from the request body as part of that. Path-only routing
-therefore cannot distinguish a protected `addProductsToCart` mutation for the configured drop
-from an ordinary GraphQL query on the same endpoint.
+therefore cannot distinguish a protected `addSimpleProductsToCart`,
+`addVirtualProductsToCart`, or `addProductsToCart` mutation for the configured drop from an
+ordinary GraphQL query on the same endpoint.
 
 The reference design routes the entire `POST /graphql` transport to DropShield.Api rather than
 attempting that distinction at the edge. `GraphQlCartMutationInspector`, already exercised by
@@ -70,9 +73,10 @@ bound that before it reaches DropShield.
 
 ## REST and storefront cart-add
 
-REST cart (`POST /api/cart`) and checkout (`POST /api/checkout`) already terminate in
-DropShield.Api; the reference routing rule does not introduce any path that would let a client
-reach Adobe Commerce for these without going through DropShield first. Storefront cart-add
+The Adobe Commerce profile routes only the guest-cart REST item-add and payment-information paths
+listed above to DropShield; unsupported `/rest/*` paths remain on Commerce's ordinary backend.
+DemoStore REST cart (`POST /api/cart`) and checkout (`POST /api/checkout`) also terminate in
+DropShield.Api. Storefront cart-add
 (`POST /checkout/cart/add`) is included in the edge route list on the same unconditional basis
 as REST cart, matching how `DemoStoreForwarder` already treats it — this route has no
 ordinary/non-cart traffic to disambiguate from, unlike GraphQL.
@@ -189,8 +193,9 @@ apply, without overwriting it. See `integrations/fastly/README.md` for the full 
 snippet ordering table.
 
 This integration does not modify the Adobe Commerce connector. REST cart/checkout protection,
-GraphQL cart/checkout protection, and cross-language Origin Assertion validation are established
-by the connector itself and are unaffected here — see [docs/adobe-commerce.md](adobe-commerce.md).
+the explicitly supported GraphQL cart forms, and cross-language Origin Assertion validation are
+established by the connector itself and are unaffected here — see
+[docs/adobe-commerce.md](adobe-commerce.md).
 
 ## Limitations
 

@@ -49,6 +49,29 @@ public sealed class DemoStoreForwardingTests
     }
 
     [Fact]
+    public async Task AdobeCommerceProfile_ForwardsCommerceSessionCookiesAndSafeHeadersOnly()
+    {
+        var handler = new CapturingHandler();
+        using var httpClient = new HttpClient(handler) { BaseAddress = new Uri("http://localhost:5058") };
+        var source = new DefaultHttpContext();
+        source.Request.Headers.Cookie = "PHPSESSID=commerce-session; DropShield.Session=private-session";
+        source.Request.Headers["Store"] = "default";
+        source.Request.Headers["Authorization"] = "Bearer client-secret";
+        var client = new DemoStoreClient(httpClient);
+
+        using var response = await client.SendAsync(
+            HttpMethod.Get,
+            "/rest/V1/guest-carts/cart_123/items",
+            source.Request,
+            CancellationToken.None,
+            profile: OriginForwardingProfile.AdobeCommerce);
+
+        Assert.Equal("PHPSESSID=commerce-session", handler.ForwardedCookie);
+        Assert.Equal("default", handler.ForwardedStore);
+        Assert.Null(handler.ForwardedAuthorization);
+    }
+
+    [Fact]
     public async Task RemoteRedirect_IsReturnedWithoutSendingARemoteRequest()
     {
         var handler = new RedirectingHandler();
@@ -76,6 +99,10 @@ public sealed class DemoStoreForwardingTests
 
         public string? ForwardedTarget { get; private set; }
 
+        public string? ForwardedStore { get; private set; }
+
+        public string? ForwardedAuthorization { get; private set; }
+
         protected override Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request,
             CancellationToken cancellationToken)
@@ -86,6 +113,12 @@ public sealed class DemoStoreForwardingTests
                 : null;
             ForwardedActionToken = request.Headers.TryGetValues("X-DropShield-Action", out var actionValues)
                 ? string.Join(";", actionValues)
+                : null;
+            ForwardedStore = request.Headers.TryGetValues("Store", out var storeValues)
+                ? string.Join(";", storeValues)
+                : null;
+            ForwardedAuthorization = request.Headers.TryGetValues("Authorization", out var authorizationValues)
+                ? string.Join(";", authorizationValues)
                 : null;
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK));
         }

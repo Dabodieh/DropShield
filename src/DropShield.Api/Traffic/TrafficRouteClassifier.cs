@@ -1,5 +1,7 @@
 namespace DropShield.Api.Traffic;
 
+using DropShield.Api.Origin;
+
 public static class TrafficRouteClassifier
 {
     public static TrafficRoute Classify(HttpRequest request)
@@ -50,6 +52,11 @@ public static class TrafficRouteClassifier
             return TrafficRoute.StorefrontCartAdd;
         }
 
+        if (CommerceRouteMatcher.TryMatch(request, out var commerceRoute))
+        {
+            return commerceRoute.TrafficRoute;
+        }
+
         if (HttpMethods.IsPost(request.Method) &&
             Actions.ActionProofPolicy.TryGetAction(request, out _))
         {
@@ -79,6 +86,8 @@ public static class TrafficRouteClassifier
         TrafficRoute.ActionProof => "actionProof",
         TrafficRoute.GraphQlCartAdd => "graphqlCartAdd",
         TrafficRoute.StorefrontCartAdd => "storefrontCartAdd",
+        TrafficRoute.CommerceRestCart => "commerceRestCart",
+        TrafficRoute.CommerceRestCheckout => "commerceRestCheckout",
         _ => "unknown",
     };
 
@@ -92,6 +101,8 @@ public static class TrafficRouteClassifier
         TrafficRoute.ActionProof => "POST /api/action-proofs/{action}",
         TrafficRoute.GraphQlCartAdd => "POST /graphql",
         TrafficRoute.StorefrontCartAdd => "POST /checkout/cart/add",
+        TrafficRoute.CommerceRestCart => CommerceRouteMatcher.GuestCartItemsTemplate,
+        TrafficRoute.CommerceRestCheckout => CommerceRouteMatcher.GuestCartPaymentInformationTemplate,
         _ => "unknown",
     };
 

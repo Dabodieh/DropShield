@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace DropShield\Connector\Plugin;
 
 use DropShield\Connector\Model\OriginAssertionGuard;
+use DropShield\Connector\Model\OriginAssertionRequestRoute;
 use DropShield\Connector\Model\ProtectedDropResolver;
 use Magento\Framework\App\Request\Http as HttpRequest;
 use Magento\Quote\Api\CartManagementInterface;
@@ -18,8 +19,9 @@ use Magento\Quote\Api\CartRepositoryInterface;
  *
  * Confirmed by runtime testing against Mage-OS 3.0.0 (see
  * docs/adobe-commerce.md): a protected checkout is rejected without a valid
- * assertion and succeeds with one, over both REST guest checkout and the
- * GraphQL placeOrder mutation.
+ * assertion and succeeds with one over REST guest checkout. The GraphQL placeOrder service
+ * path is connector-capable, but the narrow DropShield gateway profile does not expose
+ * GraphQL checkout and that flow has not been runtime-verified.
  *
  * Only quotes containing a protected drop require a valid origin
  * assertion; ordinary checkouts are unaffected.
@@ -27,7 +29,6 @@ use Magento\Quote\Api\CartRepositoryInterface;
 class CartManagementPlugin
 {
     private const ACTION = 'checkout';
-    private const ROUTE = 'POST /api/checkout';
 
     public function __construct(
         private readonly CartRepositoryInterface $cartRepository,
@@ -61,7 +62,7 @@ class CartManagementPlugin
             $this->request,
             $this->dropResolver->getDropId(),
             self::ACTION,
-            self::ROUTE
+            OriginAssertionRequestRoute::fromRequest($this->request)
         );
     }
 }

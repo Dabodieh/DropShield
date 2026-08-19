@@ -12,6 +12,10 @@ public sealed class DropShieldOptions
 
     public int OriginTimeoutSeconds { get; set; } = 10;
 
+    public OriginMode OriginMode { get; set; } = OriginMode.DemoStore;
+
+    public AdobeCommerceOptions AdobeCommerce { get; set; } = new();
+
     public List<string> ProtectedProducts { get; set; } = [];
 
     public SyntheticClientIdentityOptions SyntheticClientIdentity { get; set; } = new();
@@ -43,6 +47,19 @@ public enum TrafficStateProvider
 {
     InMemory,
     Redis,
+}
+
+public enum OriginMode
+{
+    DemoStore,
+    AdobeCommerce,
+}
+
+public sealed class AdobeCommerceOptions
+{
+    // Bounded PoC limit for inspected/protected REST JSON, GraphQL JSON, and storefront form
+    // requests. This is not presented as a universal Magento request-size limit.
+    public int MaximumProtectedRequestBodyBytes { get; set; } = 262_144;
 }
 
 public sealed class SyntheticClientIdentityOptions

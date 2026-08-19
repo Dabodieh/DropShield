@@ -3,22 +3,29 @@ using System.Text.Json;
 namespace DropShield.Api.Traffic;
 
 /// <summary>
-/// Determines whether a raw POST /graphql request body invokes the one GraphQL cart-add
-/// mutation this reference integration protects (Magento's <c>addProductsToCart</c>, the
-/// operation <c>Magento\QuoteGraphQl\Model\Cart\AddProductsToCart::execute</c> ultimately
-/// serves) and, if so, which SKUs it targets.
+/// Determines whether a raw POST /graphql request body invokes one of the narrowly supported
+/// GraphQL cart-add mutations (<c>addSimpleProductsToCart</c>,
+/// <c>addVirtualProductsToCart</c>, or <c>addProductsToCart</c>) and, if so, which SKUs it
+/// targets. The first two reach Magento's legacy
+/// <c>Magento\QuoteGraphQl\Model\Cart\AddProductsToCart::execute</c> service; the last
+/// reaches Mage-OS' modern service.
 ///
 /// Deliberately not a GraphQL parser: it inspects the request body's JSON envelope
 /// (<c>{query, variables, operationName}</c>) and looks for the mutation name in the query
 /// text plus SKU values in <c>variables.cart_items[].sku</c>/<c>parent_sku</c> — the same shape
 /// Magento's own resolver reads (see AddSimpleProductToCart::extractSku). This is enough to
-/// tell "an addProductsToCart mutation is present" from "an ordinary catalogue/customer query,"
+/// tell "a supported cart-add mutation is present" from "an ordinary catalogue/customer query,"
 /// which is all routing needs; Magento itself remains the authority on whether the document is
 /// otherwise valid GraphQL.
 /// </summary>
 public static class GraphQlCartMutationInspector
 {
-    private const string MutationName = "addProductsToCart";
+    private static readonly string[] SupportedMutationNames =
+    [
+        "addProductsToCart",
+        "addSimpleProductsToCart",
+        "addVirtualProductsToCart",
+    ];
 
     public static GraphQlCartMutation Inspect(ReadOnlySpan<byte> body)
     {
@@ -48,7 +55,7 @@ public static class GraphQlCartMutationInspector
             }
 
             var query = queryElement.GetString() ?? string.Empty;
-            if (!query.Contains(MutationName, StringComparison.Ordinal))
+            if (!SupportedMutationNames.Any(name => query.Contains(name, StringComparison.Ordinal)))
             {
                 return GraphQlCartMutation.None;
             }
@@ -74,7 +81,11 @@ public static class GraphQlCartMutationInspector
             !input.TryGetProperty("cart_items", out var cartItems) ||
             cartItems.ValueKind != JsonValueKind.Array)
         {
-            return;
+            if (!variables.TryGetProperty("cartItems", out cartItems) ||
+                cartItems.ValueKind != JsonValueKind.Array)
+            {
+                return;
+            }
         }
 
         foreach (var item in cartItems.EnumerateArray())
@@ -89,6 +100,14 @@ public static class GraphQlCartMutationInspector
                 !string.IsNullOrEmpty(parentSku.GetString()))
             {
                 skus.Add(parentSku.GetString()!);
+                continue;
+            }
+
+            if (item.TryGetProperty("sku", out var directSku) &&
+                directSku.ValueKind == JsonValueKind.String &&
+                !string.IsNullOrEmpty(directSku.GetString()))
+            {
+                skus.Add(directSku.GetString()!);
                 continue;
             }
 

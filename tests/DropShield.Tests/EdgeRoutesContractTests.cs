@@ -34,8 +34,9 @@ public sealed class EdgeRoutesContractTests
         var vcl = File.ReadAllText(FindRepoFile("integrations", "fastly", "vcl", "recv-route.vcl"));
 
         Assert.Contains("req.url ~ \"^/api/\"", vcl);
-        Assert.Contains("req.url ~ \"^/graphql$\"", vcl);
-        Assert.Contains("req.url ~ \"^/checkout/cart/add$\"", vcl);
+        Assert.Contains("req.url ~ \"^/graphql(?:[?].*)?$\"", vcl);
+        Assert.Contains("req.url ~ \"^/checkout/cart/add(?:[?].*)?$\"", vcl);
+        Assert.Contains("^/rest/(?:default/)?V1/guest-carts/[A-Za-z0-9_-]{1,128}/(?:items|payment-information)", vcl);
         Assert.Contains("req.url ~ \"^/health$\"", vcl);
         Assert.Contains("req.url ~ \"^/internal/\"", vcl);
     }
@@ -50,6 +51,8 @@ public sealed class EdgeRoutesContractTests
         Assert.Contains(assertionRoutes["checkout"], edgeRoutes);
         Assert.Contains(assertionRoutes["graphqlCartAdd"], edgeRoutes);
         Assert.Contains(assertionRoutes["storefrontCartAdd"], edgeRoutes);
+        Assert.Contains(assertionRoutes["commerceRestCartTemplate"], edgeRoutes);
+        Assert.Contains(assertionRoutes["commerceRestCheckoutTemplate"], edgeRoutes);
     }
 
     private static HashSet<string> LoadEdgeRoutes()
@@ -77,6 +80,8 @@ public sealed class EdgeRoutesContractTests
             ["checkout"] = routes.GetProperty("checkout").GetString()!,
             ["graphqlCartAdd"] = routes.GetProperty("graphqlCartAdd").GetString()!,
             ["storefrontCartAdd"] = routes.GetProperty("storefrontCartAdd").GetString()!,
+            ["commerceRestCartTemplate"] = routes.GetProperty("commerceRestCartTemplate").GetString()!,
+            ["commerceRestCheckoutTemplate"] = routes.GetProperty("commerceRestCheckoutTemplate").GetString()!,
         };
     }
 

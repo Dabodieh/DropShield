@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace DropShield\Connector\Plugin;
 
 use DropShield\Connector\Model\OriginAssertionGuard;
+use DropShield\Connector\Model\OriginAssertionRequestRoute;
 use DropShield\Connector\Model\ProtectedDropResolver;
 use Magento\Framework\App\Request\Http as HttpRequest;
 use Magento\Quote\Model\Quote;
@@ -12,7 +13,7 @@ use Magento\QuoteGraphQl\Model\Cart\AddProductsToCart;
 
 /**
  * Intercepts Magento\QuoteGraphQl\Model\Cart\AddProductsToCart::execute, the class the
- * addSimpleProductsToCart/addConfigurableProductsToCart GraphQL resolvers use to add items to
+ * addSimpleProductsToCart/addVirtualProductsToCart GraphQL resolvers use to add items to
  * a quote. GraphQL never calls CartItemRepositoryInterface::save (see
  * CartItemRepositoryPlugin) — it mutates the Quote object directly and saves it through
  * CartRepositoryInterface, so it needs its own extension point rather than reusing the REST
@@ -27,7 +28,6 @@ use Magento\QuoteGraphQl\Model\Cart\AddProductsToCart;
 class QuoteGraphQlAddProductsToCartPlugin
 {
     private const ACTION = 'cart';
-    private const ROUTE = 'POST /graphql';
 
     public function __construct(
         private readonly ProtectedDropResolver $dropResolver,
@@ -58,7 +58,7 @@ class QuoteGraphQlAddProductsToCartPlugin
             $this->request,
             $this->dropResolver->getDropId(),
             self::ACTION,
-            self::ROUTE
+            OriginAssertionRequestRoute::fromRequest($this->request)
         );
     }
 }

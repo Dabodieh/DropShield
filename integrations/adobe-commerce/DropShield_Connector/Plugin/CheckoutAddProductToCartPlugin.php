@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace DropShield\Connector\Plugin;
 
 use DropShield\Connector\Model\OriginAssertionGuard;
+use DropShield\Connector\Model\OriginAssertionRequestRoute;
 use DropShield\Connector\Model\ProtectedDropResolver;
 use Magento\Catalog\Model\Product;
 use Magento\Checkout\Model\AddProductToCart;
@@ -26,7 +27,6 @@ use Magento\Framework\App\Request\Http as HttpRequest;
 class CheckoutAddProductToCartPlugin
 {
     private const ACTION = 'cart';
-    private const ROUTE = 'POST /checkout/cart/add';
 
     public function __construct(
         private readonly ProtectedDropResolver $dropResolver,
@@ -55,7 +55,7 @@ class CheckoutAddProductToCartPlugin
             $this->request,
             $this->dropResolver->getDropId(),
             self::ACTION,
-            self::ROUTE
+            OriginAssertionRequestRoute::fromRequest($this->request)
         );
     }
 }

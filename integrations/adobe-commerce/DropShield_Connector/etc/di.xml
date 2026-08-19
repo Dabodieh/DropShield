@@ -9,6 +9,9 @@
     <type name="Magento\QuoteGraphQl\Model\Cart\AddProductsToCart">
         <plugin name="dropShieldGraphQlCartAddAssertion" type="DropShield\Connector\Plugin\QuoteGraphQlAddProductsToCartPlugin" sortOrder="10"/>
     </type>
+    <type name="Magento\QuoteGraphQl\Model\AddProductsToCart">
+        <plugin name="dropShieldModernGraphQlCartAddAssertion" type="DropShield\Connector\Plugin\ModernGraphQlAddProductsToCartPlugin" sortOrder="10"/>
+    </type>
     <type name="Magento\Checkout\Model\AddProductToCart">
         <plugin name="dropShieldStorefrontCartAddAssertion" type="DropShield\Connector\Plugin\CheckoutAddProductToCartPlugin" sortOrder="10"/>
     </type>

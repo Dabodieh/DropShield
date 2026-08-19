@@ -20,6 +20,9 @@ internal sealed class RecordingDemoStoreClient : IDemoStoreClient
 
     public string? LastForwardedPath { get; private set; }
 
+    public IReadOnlyDictionary<string, string[]> NextResponseHeaders { get; set; } =
+        new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase);
+
     public int GetRequestCount(string path) =>
         _requestCounts.GetValueOrDefault(path);
 
@@ -28,7 +31,8 @@ internal sealed class RecordingDemoStoreClient : IDemoStoreClient
         string path,
         HttpRequest sourceRequest,
         CancellationToken cancellationToken,
-        (string HeaderName, string Value)? originAssertionHeader = null)
+        (string HeaderName, string Value)? originAssertionHeader = null,
+        OriginForwardingProfile profile = OriginForwardingProfile.DemoStore)
     {
         LastOriginAssertionHeader = originAssertionHeader;
         LastForwardedPath = path;
@@ -60,8 +64,18 @@ internal sealed class RecordingDemoStoreClient : IDemoStoreClient
             ("POST", "/checkout/cart/add") => Json(
                 HttpStatusCode.Accepted,
                 """{"status":"accepted"}"""),
+            ("POST", var commercePath) when commercePath.StartsWith(
+                "/rest/V1/guest-carts/", StringComparison.Ordinal) || commercePath.StartsWith(
+                "/rest/default/V1/guest-carts/", StringComparison.Ordinal) => Json(
+                HttpStatusCode.Accepted,
+                """{"status":"accepted"}"""),
             _ => new HttpResponseMessage(HttpStatusCode.NotFound),
         };
+
+        foreach (var header in NextResponseHeaders)
+        {
+            response.Headers.TryAddWithoutValidation(header.Key, header.Value);
+        }
 
         return response;
     }

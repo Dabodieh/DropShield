@@ -4,46 +4,41 @@ declare(strict_types=1);
 
 namespace DropShield\Connector\Test\Unit\Model;
 
-use DropShield\Connector\Plugin\CartItemRepositoryPlugin;
-use DropShield\Connector\Plugin\CartManagementPlugin;
-use DropShield\Connector\Plugin\CheckoutAddProductToCartPlugin;
-use DropShield\Connector\Plugin\QuoteGraphQlAddProductsToCartPlugin;
+use DropShield\Connector\Model\OriginAssertionRequestRoute;
+use Magento\Framework\App\Request\Http as HttpRequest;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Guards against H3-style drift: the ROUTE constants each plugin validates against must stay
- * byte-identical to the "route" claim DropShield.Api signs
- * (src/DropShield.Api/Traffic/TrafficRouteClassifier.cs, GetRouteTemplate) for the REST routes,
- * and to the documented literal for the GraphQL/storefront routes DropShield.Api does not yet
- * issue assertions for. Nothing else enforces this across languages, so all four are checked
- * against the single source of truth in contracts/origin-assertion-v1.json.
+ * Commerce REST route claims are bound to the exact incoming path. This protects the opaque
+ * cart identifier rather than validating against a fabricated static endpoint.
  */
 final class OriginAssertionRouteContractTest extends TestCase
 {
-    public function testCartAndCheckoutRouteConstantsMatchTheSharedContract(): void
+    public function testCommerceRouteTemplatesDocumentTheConcreteClaimShape(): void
     {
         $routes = $this->loadContractRoutes();
 
-        self::assertSame($routes['cart'], $this->readPrivateConstant(CartItemRepositoryPlugin::class, 'ROUTE'));
-        self::assertSame($routes['checkout'], $this->readPrivateConstant(CartManagementPlugin::class, 'ROUTE'));
+        self::assertSame('POST /rest[/default]/V1/guest-carts/{cartId}/items', $routes['commerceRestCartTemplate']);
+        self::assertSame(
+            'POST /rest[/default]/V1/guest-carts/{cartId}/payment-information',
+            $routes['commerceRestCheckoutTemplate']
+        );
     }
 
-    public function testGraphQlAndStorefrontRouteConstantsMatchTheSharedContract(): void
+    public function testRequestRouteUsesTheActualMethodAndPath(): void
     {
-        $routes = $this->loadContractRoutes();
+        $request = $this->createMock(HttpRequest::class);
+        $request->method('getMethod')->willReturn('post');
+        $request->method('getPathInfo')->willReturn('/rest/default/V1/guest-carts/masked-cart/items');
 
         self::assertSame(
-            $routes['graphqlCartAdd'],
-            $this->readPrivateConstant(QuoteGraphQlAddProductsToCartPlugin::class, 'ROUTE')
-        );
-        self::assertSame(
-            $routes['storefrontCartAdd'],
-            $this->readPrivateConstant(CheckoutAddProductToCartPlugin::class, 'ROUTE')
+            'POST /rest/default/V1/guest-carts/masked-cart/items',
+            OriginAssertionRequestRoute::fromRequest($request)
         );
     }
 
     /**
-     * @return array{cart: string, checkout: string, graphqlCartAdd: string, storefrontCartAdd: string}
+     * @return array{commerceRestCartTemplate: string, commerceRestCheckoutTemplate: string}
      */
     private function loadContractRoutes(): array
     {
@@ -51,10 +46,8 @@ final class OriginAssertionRouteContractTest extends TestCase
         $contract = json_decode((string) file_get_contents($path), true, flags: JSON_THROW_ON_ERROR);
 
         return [
-            'cart' => (string) $contract['routes']['cart'],
-            'checkout' => (string) $contract['routes']['checkout'],
-            'graphqlCartAdd' => (string) $contract['routes']['graphqlCartAdd'],
-            'storefrontCartAdd' => (string) $contract['routes']['storefrontCartAdd'],
+            'commerceRestCartTemplate' => (string) $contract['routes']['commerceRestCartTemplate'],
+            'commerceRestCheckoutTemplate' => (string) $contract['routes']['commerceRestCheckoutTemplate'],
         ];
     }
 
@@ -73,10 +66,4 @@ final class OriginAssertionRouteContractTest extends TestCase
         self::fail('Could not locate contracts/origin-assertion-v1.json from the test directory.');
     }
 
-    private function readPrivateConstant(string $class, string $name): string
-    {
-        $reflection = new \ReflectionClass($class);
-
-        return (string) $reflection->getConstant($name);
-    }
 }

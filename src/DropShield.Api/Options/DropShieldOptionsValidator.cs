@@ -23,6 +23,17 @@ public sealed partial class DropShieldOptionsValidator(IHostEnvironment environm
 
         ValidateOrigin(options.OriginBaseUrl, failures);
 
+        if (!Enum.IsDefined(options.OriginMode))
+        {
+            failures.Add("DropShield:OriginMode must be DemoStore or AdobeCommerce.");
+        }
+
+        if (options.AdobeCommerce.MaximumProtectedRequestBodyBytes is < 4_096 or > 1_048_576)
+        {
+            failures.Add(
+                "DropShield:AdobeCommerce:MaximumProtectedRequestBodyBytes must be between 4096 and 1048576.");
+        }
+
         if (options.OriginTimeoutSeconds <= 0)
         {
             failures.Add("DropShield:OriginTimeoutSeconds must be greater than zero.");

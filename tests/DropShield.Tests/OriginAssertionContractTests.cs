@@ -1,4 +1,5 @@
 using System.Text.Json;
+using DropShield.Api.Origin;
 using DropShield.Api.Traffic;
 
 namespace DropShield.Tests;
@@ -35,6 +36,15 @@ public sealed class OriginAssertionContractTests
             TrafficRouteClassifier.GetRouteTemplate(TrafficRoute.StorefrontCartAdd));
     }
 
+    [Fact]
+    public void CommerceRestRouteTemplates_MatchTheSharedContract()
+    {
+        var routes = LoadContractRoutes();
+
+        Assert.Equal(CommerceRouteMatcher.GuestCartItemsTemplate, routes["commerceRestCartTemplate"]);
+        Assert.Equal(CommerceRouteMatcher.GuestCartPaymentInformationTemplate, routes["commerceRestCheckoutTemplate"]);
+    }
+
     private static Dictionary<string, string> LoadContractRoutes()
     {
         var path = FindContractPath();
@@ -46,6 +56,8 @@ public sealed class OriginAssertionContractTests
             ["checkout"] = routes.GetProperty("checkout").GetString()!,
             ["graphqlCartAdd"] = routes.GetProperty("graphqlCartAdd").GetString()!,
             ["storefrontCartAdd"] = routes.GetProperty("storefrontCartAdd").GetString()!,
+            ["commerceRestCartTemplate"] = routes.GetProperty("commerceRestCartTemplate").GetString()!,
+            ["commerceRestCheckoutTemplate"] = routes.GetProperty("commerceRestCheckoutTemplate").GetString()!,
         };
     }
 

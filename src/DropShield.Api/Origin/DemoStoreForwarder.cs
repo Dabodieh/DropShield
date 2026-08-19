@@ -40,12 +40,13 @@ public sealed class DemoStoreForwarder(
         }
 
         var configured = options.Value;
-        var isProtectedGraphQlMutation = route == TrafficRoute.GraphQlCartAdd &&
-            (observation?.IsProtectedGraphQlCartMutation ?? false);
+        var protectedAction = observation?.ProtectedAction;
+        var isLegacyProtectedMutation = route is TrafficRoute.Cart or TrafficRoute.Checkout or TrafficRoute.StorefrontCartAdd ||
+                                        (route == TrafficRoute.GraphQlCartAdd &&
+                                         (observation?.IsProtectedGraphQlCartMutation ?? false));
         (string HeaderName, string Value)? assertionHeader = null;
         if (configured.OriginAssertions.Enabled &&
-            (route is TrafficRoute.Cart or TrafficRoute.Checkout or TrafficRoute.StorefrontCartAdd ||
-             isProtectedGraphQlMutation))
+            (protectedAction is not null || isLegacyProtectedMutation))
         {
             metrics.RecordCommerceProtectedRequest();
             string assertion;
@@ -76,12 +77,19 @@ public sealed class DemoStoreForwarder(
                 GetRelativeTarget(context.Request),
                 context.Request,
                 cancellationToken,
-                assertionHeader);
+                assertionHeader,
+                configured.OriginMode == OriginMode.AdobeCommerce
+                    ? OriginForwardingProfile.AdobeCommerce
+                    : OriginForwardingProfile.DemoStore);
 
             context.Response.StatusCode = (int)originResponse.StatusCode;
             if (originResponse.Content.Headers.ContentType is not null)
             {
                 context.Response.ContentType = originResponse.Content.Headers.ContentType.ToString();
+            }
+            if (configured.OriginMode == OriginMode.AdobeCommerce)
+            {
+                CopyCommerceResponseHeaders(originResponse, context.Response);
             }
 
             await originResponse.Content.CopyToAsync(context.Response.Body, cancellationToken);
@@ -130,19 +138,47 @@ public sealed class DemoStoreForwarder(
     private static string GetRelativeTarget(HttpRequest request) =>
         request.PathBase.Add(request.Path).Add(request.QueryString) ?? "/";
 
+    private static void CopyCommerceResponseHeaders(HttpResponseMessage origin, HttpResponse response)
+    {
+        // Deliberately narrow: these are the response headers needed to keep a Commerce
+        // browser session and normal redirect/store behaviour intact. Do not turn this into a
+        // general proxy response-header pass-through.
+        CopyHeader("Set-Cookie");
+        CopyHeader("Location");
+        CopyHeader("Store");
+        CopyHeader("X-Magento-Vary");
+        CopyHeader("X-Magento-Cache-Debug");
+
+        void CopyHeader(string name)
+        {
+            if (origin.Headers.TryGetValues(name, out var values))
+            {
+                response.Headers.Append(name, values.ToArray());
+            }
+        }
+    }
+
     private async Task<string> IssueAssertionAsync(
         HttpContext context,
         TrafficRoute route,
         DropShieldOptions configured,
         CancellationToken cancellationToken)
     {
-        var action = route == TrafficRoute.Checkout ? ActionKind.Checkout : ActionKind.Cart;
-        var body = await RequestBodyReader.ReadAsync(context.Request, cancellationToken);
+        var action = context.Features.Get<TrafficRequestObservation>()?.ProtectedAction ??
+                     (route == TrafficRoute.Checkout ? ActionKind.Checkout : ActionKind.Cart);
+        var observation = context.Features.Get<TrafficRequestObservation>();
+        var body = observation?.BufferedBody ?? await RequestBodyReader.ReadAsync(
+            context.Request,
+            configured.AdobeCommerce.MaximumProtectedRequestBodyBytes,
+            cancellationToken);
+        var assertionRoute = route is TrafficRoute.CommerceRestCart or TrafficRoute.CommerceRestCheckout
+            ? CommerceRouteMatcher.GetAssertionRoute(context.Request)
+            : TrafficRouteClassifier.GetRouteTemplate(route);
         return assertionService.Issue(
             configured.Admission.ProtectedProduct,
             action.ToString().ToLowerInvariant(),
             context.Request.Method,
-            TrafficRouteClassifier.GetRouteTemplate(route),
+            assertionRoute,
             body);
     }
 

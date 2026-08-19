@@ -35,38 +35,49 @@ issued for. Excluded: customer names, email, address, payment details, raw cooki
 addresses, admission tokens, action tokens.
 
 Full contract and a deterministic cross-language test vector: `contracts/origin-assertion-v1.json`.
-The contract's `routes` object is the single source of truth for the canonical route literals
-each transport binds to: `"POST /api/cart"`, `"POST /api/checkout"`, `"POST /graphql"`, and
-`"POST /checkout/cart/add"` — all four are now issued by `DropShield.Api` and validated by the
-connector. Every plugin's `ROUTE` constant is checked against this file in
-`OriginAssertionRouteContractTest` (PHP), and all four are also checked against
-`TrafficRouteClassifier.GetRouteTemplate` (C#) in `OriginAssertionContractTests`, so a future
-rename on either side fails a test instead of only failing at runtime.
+The contract documents both legacy DemoStore literals and the Commerce REST templates. Commerce
+REST assertions deliberately bind the **concrete** request path, including the opaque guest-cart
+ID (for example `POST /rest/V1/guest-carts/abc/items`); the documented `{cartId}` templates are
+not signed literally. `OriginAssertionRouteContractTest` (PHP) checks that the connector derives
+the method/path from Magento's actual request, while `OriginAssertionContractTests` (C#) checks
+the strict matcher templates against the shared contract.
 
 ### DropShield.Api side
 
 - `Origin/OriginAssertionService` issues and validates assertions; `Origin/OriginAssertionSigningKeyProvider`
   holds a dedicated key (`DropShield:OriginAssertions:SigningKey`, Base64, >= 32 random bytes),
   separate from the admission token key.
-- `TrafficRouteClassifier` recognises four mutation routes: `POST /api/cart`,
-  `POST /api/checkout`, `POST /graphql`, `POST /checkout/cart/add`. `DemoStoreForwarder` issues
-  an assertion for all four only after the full existing middleware chain (rate limit,
-  admission, admission proof, action proof, replay consumption, reservation) has already
-  allowed the request. Issuance failure fails closed (503); the mutation is never forwarded
-  without proof.
+- `OriginMode` is explicit. The default `DemoStore` behaviour is retained. `AdobeCommerce` only
+  exposes these additional protected routes: `POST /rest/V1/guest-carts/{cartId}/items`,
+  `POST /rest/default/V1/guest-carts/{cartId}/items`, and their corresponding
+  `payment-information` checkout routes. Unsupported Magento REST paths remain 404 at
+  DropShield; this is not a general Commerce proxy.
+- `DemoStoreForwarder` issues an assertion only after the existing middleware chain (rate limit,
+  admission, admission proof, action proof, replay consumption, reservation) has allowed a
+  protected operation. In Commerce mode it forwards only a narrow safe header set and Commerce
+  session cookies, strips `DropShield.*` cookies and client-supplied assertion material, and
+  returns `Set-Cookie`, `Location`, and Magento store/vary response headers needed by a browser.
+  Issuance failure fails closed (503).
+- The existing `/api/products/{drop}/stock` admission entry point remains DropShield-owned in
+  Commerce mode, backed by its reservation capacity. It is not translated into a fictitious
+  Magento catalogue endpoint.
 - `/graphql` is a shared endpoint (catalogue queries, customer data, and cart-add for both
   protected and ordinary SKUs all arrive there), so it is not unconditionally treated as a
   protected mutation. `Traffic/GraphQlCartMutationInspector` inspects the request body once
   (the `{query, variables, operationName}` JSON envelope) to determine whether the document
-  invokes `addProductsToCart` for the configured protected drop; the result is cached on the
+  invokes `addSimpleProductsToCart`, `addVirtualProductsToCart`, or `addProductsToCart` for the
+  configured protected drop;
+  the result is cached on the
   request (`TrafficRequestObservation.IsProtectedGraphQlCartMutation`) so every downstream
   policy check reads the same decision instead of re-parsing. This is a bounded structural
   check, not a GraphQL parser — it does not validate or execute the document, only detects the
-  one supported mutation shape. `/checkout/cart/add` has no such ambiguity and is always
+  supported protected cart-add mutation shape. `/checkout/cart/add` has no such ambiguity and is
+  always
   treated as a mutation, matching REST's existing `/api/cart` precedent.
 - `TrafficMetricsMiddleware` unconditionally strips any client-supplied
   `X-DropShield-Origin-Assertion` header before route classification, so a forged header can
-  never reach the origin — verified for all four mutation routes.
+  never reach the origin. Protected Commerce and GraphQL bodies are read once with a configurable
+  4 KiB–1 MiB cap (default 256 KiB); oversized protected bodies receive 413 before forwarding.
 - The raw request body is read once via `Traffic/RequestBodyReader` (buffered, stream rewound
   after each read) and forwarded unchanged; the same bytes are hashed into the assertion and
   sent to the origin. Nothing parses and reserializes the body — GraphQL JSON and storefront
@@ -101,19 +112,20 @@ Cart-add, one plugin per transport:
   (`Plugin/CartItemRepositoryPlugin`). What the REST cart-items endpoint
   (`POST /rest/V1/{guest-,}carts/.../items`) calls.
 - `Magento\QuoteGraphQl\Model\Cart\AddProductsToCart::execute` — `beforeExecute` plugin
-  (`Plugin/QuoteGraphQlAddProductsToCartPlugin`). What the `addSimpleProductsToCart` /
-  `addConfigurableProductsToCart` GraphQL resolvers call; this class mutates the `Quote` object
-  directly and saves it via `CartRepositoryInterface`, never reaching
-  `CartItemRepositoryInterface::save`.
+  (`Plugin/QuoteGraphQlAddProductsToCartPlugin`) for the legacy
+  `addSimpleProductsToCart` / `addVirtualProductsToCart` resolver path.
+- `Magento\QuoteGraphQl\Model\AddProductsToCart::execute` — `beforeExecute` plugin
+  (`Plugin/ModernGraphQlAddProductsToCartPlugin`) for Mage-OS 3.0.0's modern
+  `addProductsToCart` mutation. This is separate from the legacy class; leaving it on the old
+  interceptor would silently leave the recommended mutation unguarded.
 - `Magento\Checkout\Model\AddProductToCart::execute` — `beforeExecute` plugin
   (`Plugin/CheckoutAddProductToCartPlugin`). What the storefront `checkout/cart/add` controller
   calls; a third, distinct class from both of the above.
 
-All three plugins route into the same shared `OriginAssertionGuard`/`ProtectedDropResolver`
-logic — no GraphQL-specific security logic and no second assertion validator were added. Each
-plugin only differs in which SKUs it can see and which literal `route` claim it checks
-(`"POST /api/cart"`, `"POST /graphql"`, `"POST /checkout/cart/add"` respectively), since the
-assertion's route binding must match the transport that actually received the request.
+All cart plugins route into the same shared `OriginAssertionGuard`/`ProtectedDropResolver`
+logic — no GraphQL-specific crypto validator was added. Each uses the actual incoming method and
+path for the route claim, so REST guest-cart identifiers, GraphQL, and storefront request shapes
+cannot be substituted for each other.
 
 Checkout, one plugin covers all three transports:
 
@@ -121,17 +133,16 @@ Checkout, one plugin covers all three transports:
   (`Plugin/CartManagementPlugin`). REST guest/customer checkout, the GraphQL `placeOrder`
   mutation, and storefront one-page checkout (via
   `PaymentInformationManagementInterface::savePaymentInformationAndPlaceOrder`) all genuinely
-  converge on this one call to convert a quote into an order. Confirmed by runtime testing:
-  REST and GraphQL checkout are both correctly rejected without a valid assertion and correctly
-  succeed with one. This plugin was not changed by the cart-add fix.
+  converge on this one call to convert a quote into an order. The narrow DropShield profile
+  sends the REST guest checkout route; GraphQL checkout remains connector-capable but is not
+  gateway-exposed. This plugin was not changed by the cart-add fix.
 
 Every plugin is a `before` plugin, not `around`: each only needs to validate-then-throw or pass
 through, so the least invasive supported mechanism was used throughout.
 
-No double enforcement: the three cart-add plugins sit on three disjoint classes with no shared
-call path, so a single incoming request can only ever trigger exactly one of them. Confirmed by
-runtime testing — REST cart-add, REST checkout, and GraphQL checkout all still behave exactly
-as before the cart-add fix.
+No double enforcement: the REST, legacy GraphQL, modern GraphQL, and storefront cart-add
+plugins sit on distinct extension points. The two GraphQL plugins cover separate Mage-OS 3.0.0
+service paths; a single supported mutation reaches one of them.
 
 Not yet covered by the reference connector: multi-shipment/multi-address checkout flows that
 bypass `CartManagementInterface::placeOrder` entirely, and any custom checkout extension that
@@ -159,8 +170,9 @@ same drop identifier before relying on multi-SKU protection.
 
 - Cart: if the SKU being added is protected and the request carries no valid origin assertion,
   the transport-appropriate plugin (`CartItemRepositoryPlugin` for REST,
-  `QuoteGraphQlAddProductsToCartPlugin` for GraphQL, `CheckoutAddProductToCartPlugin` for the
-  storefront) throws `AuthorizationRequiredException` before the item is added.
+  `QuoteGraphQlAddProductsToCartPlugin` or `ModernGraphQlAddProductsToCartPlugin` for GraphQL,
+  `CheckoutAddProductToCartPlugin` for the storefront) throws
+  `AuthorizationRequiredException` before the item is added.
 - Checkout: if the quote being placed contains a protected SKU and the request carries no valid
   origin assertion, `CartManagementPlugin` throws before the order is placed, for all three
   transports. Quotes with no protected SKU are unaffected.
@@ -184,84 +196,47 @@ through environment-scoped deployment configuration, never committed or exported
 
 | Surface | Cart-add | Checkout |
 |---|---|---|
-| REST (`guest-carts/{id}/items`, `guest-carts/{id}/payment-information`) | Protected — verified over HTTP | Protected — verified over HTTP |
-| GraphQL (`addSimpleProductsToCart`, `placeOrder`) | Protected — verified over HTTP | Protected — verified over HTTP |
-| Storefront (`checkout/cart/add`, one-page checkout) | Plugin confirmed to attach and reject via direct service invocation (real DI, real `AddProductToCart`); full HTTP round-trip (including a valid-assertion success case) not verified — Magento's storefront form-key CSRF layer blocked an end-to-end curl-based test; unrelated to the connector | Uses the same `CartManagementInterface::placeOrder` call as REST/GraphQL, so expected protected; not independently runtime-tested |
+| REST (`guest-carts/{id}/items`, `guest-carts/{id}/payment-information`) | SUPPORTED — RUNTIME VERIFIED over HTTP through DropShield | SUPPORTED — RUNTIME VERIFIED over HTTP through DropShield |
+| GraphQL (`addSimpleProductsToCart`, `addProductsToCart`) | SUPPORTED — RUNTIME VERIFIED over HTTP through DropShield | UNSUPPORTED by the narrow gateway; the `placeOrder` connector path exists but is not gateway-exposed |
+| GraphQL (`addVirtualProductsToCart`) | SUPPORTED — automated transport/connector coverage; focused real-Mage-OS virtual-product runtime check remains unverified | UNSUPPORTED by the narrow gateway |
+| Storefront (`checkout/cart/add`, one-page checkout) | UNVERIFIED full HTTP success path — plugin attaches and fails closed via direct service invocation, but form-key CSRF blocked the valid-assertion curl test | UNVERIFIED — expected to use `CartManagementInterface::placeOrder`, but not independently runtime-tested |
 
-GraphQL cart-add is covered by `QuoteGraphQlAddProductsToCartPlugin` (see "Extension points").
+GraphQL cart-add is covered by both GraphQL plugins (see "Extension points").
 Its origin assertion binds to the *real* GraphQL request: `route = "POST /graphql"` and
 `bodyHash` over the raw GraphQL request body (the query/variables JSON), not a fabricated
 REST-shaped payload — the route/body binding was verified to match exactly, not weakened.
 
-**DropShield.Api now issues assertions shaped for both routes.** `TrafficRouteClassifier`
-recognises `POST /graphql` (`TrafficRoute.GraphQlCartAdd`) and `POST /checkout/cart/add`
-(`TrafficRoute.StorefrontCartAdd`), and `DemoStoreForwarder` issues an assertion for both after
-the same pipeline that already gates `/api/cart` (rate policy, admission, action proof, replay,
-reservation). Since `/graphql` is a shared endpoint serving catalogue queries, customer data,
-and cart-add for both protected and ordinary SKUs, `GraphQlCartMutationInspector` inspects the
-request body once (JSON envelope `{query, variables, operationName}`) to determine whether the
-document is an `addProductsToCart` mutation targeting the configured protected drop — a bounded
-structural check, not a GraphQL parser or execution engine. Ordinary GraphQL traffic on the same
-endpoint never enters the protected pipeline and is forwarded unassisted. `/checkout/cart/add`
-has no such ambiguity (it is only ever a cart-add attempt), so it is treated unconditionally,
-matching REST's existing precedent for `/api/cart`. See `docs/traffic-control.md` if the
-pipeline order needs review — this fix does not change it, only which routes enter it.
+`/graphql` remains a shared endpoint, so `GraphQlCartMutationInspector` performs a bounded,
+single-read inspection of the `{query, variables, operationName}` envelope for protected
+`addSimpleProductsToCart`, `addVirtualProductsToCart`, and `addProductsToCart` requests.
+Ordinary GraphQL traffic is forwarded without an assertion. GraphQL `placeOrder` is intentionally not exposed by the Commerce gateway:
+the connector can protect it, but discerning whether the opaque cart contains a protected SKU at
+the gateway would require broader quote lookup/proxy behaviour outside this narrow profile.
 
-## Verified against a live Magento instance
+## Verified against a local Mage-OS instance
 
-Tested against **Mage-OS 3.0.0** (Magento Open Source-compatible community fork, based on
-Magento 2.4.9), installed keylessly via `markshust/docker-magento` pointed at
-`https://repo.mage-os.org/` (no Adobe Marketplace account or auth keys used, per project
-policy), PHP 8.5.6. Disposable, local-only; no k6, no third-party traffic.
+Tested against **Mage-OS 3.0.0**, installed keylessly through the reproducible
+`markshust/docker-magento` stack and `https://repo.mage-os.org/`, with PHP 8.4.21. The instance
+was disposable and local-only; no k6 or public traffic was used.
 
 Confirmed end to end over real HTTP against the running instance:
 
-- Ordinary SKU added to cart with no assertion header (REST and GraphQL) — succeeds, connector
-  does not intervene.
-- Protected SKU added to cart with no assertion header (REST and GraphQL) — rejected,
-  `DropShield authorization required.` (GraphQL surfaces it as a generic error; see "Cart and
-  checkout enforcement" above).
-- Protected SKU added to cart with a valid signed assertion (REST and GraphQL) — succeeds;
-  confirmed the item is genuinely present on the quote via a follow-up `cart` query, not just a
-  successful mutation response.
-- Protected checkout (REST guest `payment-information`) with no assertion — rejected; with a
-  valid assertion — succeeds, a real order is placed and persists (verified via
-  `GET /rest/V1/orders/{id}`).
-- Protected checkout via the GraphQL `placeOrder` mutation with no assertion — rejected, order
-  count unchanged.
-- Storefront cart-add: the real `Magento\Checkout\Model\AddProductToCart` service (resolved
-  through Magento's own DI, so the plugin is genuinely attached) rejected a protected SKU with
-  no assertion when invoked directly, bypassing only the HTTP/session/CSRF layer. A full
-  browser-equivalent HTTP round-trip was not achieved — see the coverage table.
+- Direct local protected REST cart-add: rejected (400, `DropShield authorization required.`).
+- Gateway REST cart-add: accepted with a valid DropShield-issued assertion.
+- Direct local protected GraphQL `addSimpleProductsToCart`: rejected (GraphQL generic error,
+  as Magento wraps the connector exception).
+- Gateway GraphQL `addSimpleProductsToCart`: accepted and the returned cart contains
+  `pokemon-etb`.
+- Gateway GraphQL `addProductsToCart`: accepted and the returned cart contains `pokemon-etb`.
+- Direct local protected REST checkout: rejected (400, `DropShield authorization required.`).
+- Gateway REST guest `payment-information`: accepted and placed local order `1`.
+- The connector PHPUnit suite ran inside this instance: 25 tests, 60 assertions, passing
+  (PHPUnit reported 16 non-failing notices).
 
-Two real defects were found and fixed by this testing, independent of the coverage gap above:
-
-1. **`Config::getSigningKeyBase64()` returned Magento's raw encrypted config value, not the
-   decrypted key.** The `signing_key` field uses Magento's `Encrypted` config backend, which
-   only decrypts automatically when read through the admin config-section model — every other
-   reader (this connector included) must call `EncryptorInterface::decrypt()` explicitly, the
-   same pattern core modules use for their own encrypted config values. Without this fix, every
-   assertion validation failed regardless of correctness. Fixed by decrypting in `Config.php`.
-2. **`OriginAssertionGuard` and both plugins type-hinted the request parameter as
-   `Magento\Framework\App\RequestInterface`**, which does not declare `getHeader()`,
-   `getContent()`, or `getMethod()` — the three methods the guard actually calls. This worked
-   at runtime only because Magento's DI always resolves the interface to the concrete
-   `Magento\Framework\App\Request\Http`, which does implement them; it is not guaranteed by the
-   type declaration and broke unit-test mocking under a current PHPUnit version (mocking an
-   interface for a method it doesn't declare is now a hard error). Fixed by type-hinting
-   `Http` directly, matching common practice for Magento classes that need HTTP-specific
-   request methods.
-
-Both fixes remain in place and were not regressed by the GraphQL/storefront cart-add fix. Full
-suite: 23/23 passing (17 from the original validation pass, plus 6 new: 4 for the two new
-plugins, 2 for the extended route contract), run against the real Magento-provided PHPUnit and
-autoloader inside the test instance above.
-
-The connector's PHPUnit suite is not run in this repository's CI: it depends on Magento's own
-autoloader and test bootstrap, which only exist inside an installed Magento/Mage-OS instance.
-Reproducing that in CI would mean installing a full Magento stack on every run, which is outside
-what this project's CI aims to do. The suite has been run against a real instance as described
-above; running it again requires the same local Mage-OS setup.
+The connector PHPUnit suite is not run in this repository's .NET CI because it requires the
+Magento/Mage-OS autoloader and test bootstrap. Re-running it requires the same local Mage-OS
+setup; the shared contract file must be available beside the installed module for its
+cross-language contract test.
 
 ## Limitations
 
@@ -271,6 +246,9 @@ above; running it again requires the same local Mage-OS setup.
   `CartManagementInterface::placeOrder` call, but this has not been directly observed either.
 - Multi-shipment/multi-address checkout and any non-standard order-placement path remain
   unverified — see "Extension points" above.
+- The narrow GraphQL profile supports `addVirtualProductsToCart` through the same legacy
+  connector service as `addSimpleProductsToCart`; its gateway transport is automated-tested, but
+  a focused virtual-product Mage-OS HTTP round-trip has not yet been observed.
 - Composer constraints (`magento/framework ^103.0`, `magento/module-quote ^101.0`,
   `magento/module-checkout ^100.4`) target currently supported Magento 2 / Adobe Commerce
   component versions; the runtime test above needed `--ignore-platform-req=php` because Mage-OS

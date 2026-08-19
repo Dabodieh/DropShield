@@ -1,22 +1,18 @@
 using DropShield.Api.Options;
 using DropShield.Api.Actions;
 using DropShield.Api.State;
+using DropShield.Tests.Support;
 using Microsoft.Extensions.Options;
 
 namespace DropShield.Tests;
 
 public sealed class RedisTrafficStateIntegrationTests
 {
-    [Fact]
+    [RedisFact]
     [Trait("Category", "RedisIntegration")]
     public async Task ReplayConsumption_IsAtomicAcrossInstancesAndKeyExpires()
     {
-        var connectionString = Environment.GetEnvironmentVariable(
-            "DROPSHIELD_REDIS_TEST_CONNECTION");
-        if (string.IsNullOrWhiteSpace(connectionString))
-        {
-            return;
-        }
+        var connectionString = RedisTestEnvironment.ConnectionString;
 
         var options = Options.Create(new DropShieldOptions
         {
@@ -57,16 +53,11 @@ public sealed class RedisTrafficStateIntegrationTests
         Assert.False(await database.KeyExistsAsync(key));
     }
 
-    [Fact]
+    [RedisFact]
     [Trait("Category", "RedisIntegration")]
     public async Task FixedWindow_IsAtomicAcrossInstancesAndKeyExpires()
     {
-        var connectionString = Environment.GetEnvironmentVariable(
-            "DROPSHIELD_REDIS_TEST_CONNECTION");
-        if (string.IsNullOrWhiteSpace(connectionString))
-        {
-            return;
-        }
+        var connectionString = RedisTestEnvironment.ConnectionString;
 
         var options = Options.Create(new DropShieldOptions
         {

@@ -276,8 +276,96 @@ public sealed class DropShieldOptionsValidationTests
         Assert.True(result.Failed);
         Assert.Contains(
             result.Failures,
-            failure => failure.Contains("must not reuse the admission token signing key", StringComparison.Ordinal));
+            failure => failure.Contains("configured key material must not be reused", StringComparison.Ordinal));
     }
+
+    [Theory]
+    [InlineData("AdmissionTokens", "InternalHashing")]
+    [InlineData("ActionProofs", "InternalHashing")]
+    [InlineData("OriginAssertions", "InternalHashing")]
+    [InlineData("EdgeTrust", "InternalHashing")]
+    public void KeySeparation_RejectsConfiguredReuseWithInternalHashing(
+        string firstPurpose,
+        string secondPurpose)
+    {
+        const string key = "AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA=";
+        var options = OptionsWithConfiguredKeys();
+        SetKey(options, firstPurpose, key);
+        SetKey(options, secondPurpose, key);
+
+        var result = new DropShieldOptionsValidator(new TestHostEnvironment("Testing"))
+            .Validate(null, options);
+
+        Assert.True(result.Failed);
+        Assert.Contains(result.Failures, failure =>
+            failure.Contains("configured key material must not be reused", StringComparison.Ordinal));
+        Assert.DoesNotContain(key, string.Join(Environment.NewLine, result.Failures), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void KeySeparation_RejectsEquivalentBase64WhitespaceRepresentations()
+    {
+        const string key = "AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA=";
+        var options = OptionsWithConfiguredKeys();
+        options.AdmissionTokens.SigningKey = key;
+        options.ActionProofs.SigningKey = key.Insert(8, "\r\n");
+
+        var result = new DropShieldOptionsValidator(new TestHostEnvironment("Testing"))
+            .Validate(null, options);
+
+        Assert.True(result.Failed);
+        Assert.Contains(result.Failures, failure =>
+            failure.Contains("configured key material must not be reused", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void KeySeparation_AcceptsDistinctConfiguredKeys()
+    {
+        var result = new DropShieldOptionsValidator(new TestHostEnvironment("Testing"))
+            .Validate(null, OptionsWithConfiguredKeys());
+
+        Assert.False(result.Failed);
+    }
+
+    private static DropShieldOptions OptionsWithConfiguredKeys()
+    {
+        var options = ValidOptions();
+        options.Admission.Enabled = true;
+        options.AdmissionTokens = new AdmissionTokenOptions
+        {
+            Enabled = true,
+            SigningKey = "AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA=",
+        };
+        options.ActionProofs = new ActionProofOptions
+        {
+            Enabled = true,
+            SigningKey = "ICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj8=",
+        };
+        options.InventoryReservation.Enabled = true;
+        options.InternalHashing.SigningKey = "QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl8=";
+        options.OriginAssertions = new OriginAssertionOptions
+        {
+            Enabled = true,
+            SigningKey = "YGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn8=",
+        };
+        options.EdgeTrust = new EdgeTrustOptions
+        {
+            Enabled = true,
+            SharedKey = "gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmaG5ydnp8=",
+        };
+        return options;
+    }
+
+    private static void SetKey(DropShieldOptions options, string purpose, string key) =>
+        _ = purpose switch
+        {
+            "AdmissionTokens" => options.AdmissionTokens.SigningKey = key,
+            "ActionProofs" => options.ActionProofs.SigningKey = key,
+            "OriginAssertions" => options.OriginAssertions.SigningKey = key,
+            "InternalHashing" => options.InternalHashing.SigningKey = key,
+            "EdgeTrust" => options.EdgeTrust.SharedKey = key,
+            _ => throw new ArgumentOutOfRangeException(nameof(purpose)),
+        };
 
     private static DropShieldOptions ValidOptions() => new()
     {

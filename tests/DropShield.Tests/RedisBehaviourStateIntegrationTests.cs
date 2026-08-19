@@ -1,6 +1,7 @@
 using DropShield.Api.Behaviour;
 using DropShield.Api.Options;
 using DropShield.Api.State;
+using DropShield.Tests.Support;
 using Microsoft.Extensions.Options;
 using StackExchange.Redis;
 
@@ -8,15 +9,11 @@ namespace DropShield.Tests;
 
 public sealed class RedisBehaviourStateIntegrationTests
 {
-    [Fact]
+    [RedisFact]
     [Trait("Category", "RedisIntegration")]
     public async Task BehaviourEvidenceIsSharedPrivateAndExpiryDrivenAcrossInstances()
     {
-        var connectionString = Environment.GetEnvironmentVariable("DROPSHIELD_REDIS_TEST_CONNECTION");
-        if (string.IsNullOrWhiteSpace(connectionString))
-        {
-            return;
-        }
+        var connectionString = RedisTestEnvironment.ConnectionString;
 
         var keyPrefix = $"dropshield:test:{Guid.NewGuid():N}";
         var options = Options.Create(new DropShieldOptions
@@ -36,6 +33,7 @@ public sealed class RedisBehaviourStateIntegrationTests
                 Enabled = true,
                 ObservationWindowSeconds = 1,
                 StateTtlSeconds = 2,
+                MaximumEventsPerActor = 16,
             },
         });
         await using var connectionA = new RedisConnectionProvider(options);
@@ -58,7 +56,12 @@ public sealed class RedisBehaviourStateIntegrationTests
             keys.Add(key);
         }
 
-        Assert.Equal(20, (await stateB.GetAsync(actor, CancellationToken.None)).RateLimited);
+        var evidence = await stateB.GetAsync(actor, CancellationToken.None);
+        Assert.Equal(16, evidence.RateLimited);
+        Assert.Equal(16, await connection.GetDatabase().SortedSetLengthAsync(keys.Single()));
+        Assert.Contains(
+            BehaviourReasonCode.RateLimitHistory,
+            BehaviourScoreEvaluator.Evaluate(evidence).Reasons);
         Assert.DoesNotContain(keys, key => key.ToString().Contains("raw-session", StringComparison.Ordinal));
 
         await Task.Delay(TimeSpan.FromMilliseconds(1_100));

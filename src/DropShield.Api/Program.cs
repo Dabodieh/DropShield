@@ -71,6 +71,9 @@ builder.Services.AddHttpClient<IDemoStoreClient, DemoStoreClient>((services, cli
     var options = services.GetRequiredService<IOptions<DropShieldOptions>>().Value;
     client.BaseAddress = new Uri(options.OriginBaseUrl, UriKind.Absolute);
     client.Timeout = TimeSpan.FromSeconds(options.OriginTimeoutSeconds);
+}).ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+{
+    AllowAutoRedirect = false,
 });
 builder.Services.AddRateLimiter(_ => { });
 builder.Services.AddSingleton<

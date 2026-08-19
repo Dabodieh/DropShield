@@ -73,7 +73,7 @@ public sealed class DemoStoreForwarder(
         {
             using var originResponse = await client.SendAsync(
                 new HttpMethod(context.Request.Method),
-                context.Request.Path,
+                GetRelativeTarget(context.Request),
                 context.Request,
                 cancellationToken,
                 assertionHeader);
@@ -126,6 +126,9 @@ public sealed class DemoStoreForwarder(
             RecordOriginDuration();
         }
     }
+
+    private static string GetRelativeTarget(HttpRequest request) =>
+        request.PathBase.Add(request.Path).Add(request.QueryString) ?? "/";
 
     private async Task<string> IssueAssertionAsync(
         HttpContext context,

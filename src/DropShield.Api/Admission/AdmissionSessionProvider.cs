@@ -5,7 +5,9 @@ using Microsoft.Extensions.Options;
 
 namespace DropShield.Api.Admission;
 
-public sealed partial class AdmissionSessionProvider(IOptions<DropShieldOptions> options)
+public sealed partial class AdmissionSessionProvider(
+    IOptions<DropShieldOptions> options,
+    IHostEnvironment environment)
 {
     public const string CookieName = "DropShield.Session";
     private const string SessionItemKey = "DropShield.Admission.Session";
@@ -31,7 +33,7 @@ public sealed partial class AdmissionSessionProvider(IOptions<DropShieldOptions>
             new CookieOptions
             {
                 HttpOnly = true,
-                Secure = context.Request.IsHttps,
+                Secure = CookieSecurityPolicy.ShouldUseSecureCookie(context, environment),
                 SameSite = SameSiteMode.Lax,
                 IsEssential = true,
                 Path = "/",

@@ -11,7 +11,7 @@ namespace DropShield.Tests;
 /// </summary>
 public sealed class EdgeTrustMiddlewareTests
 {
-    private const string EdgeKey = "unit-test-edge-key-not-a-real-secret000";
+    private const string EdgeKey = "AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA=";
 
     [Fact]
     public async Task Disabled_AllowsRequestsWithoutAnEdgeKey()

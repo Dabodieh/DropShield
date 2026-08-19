@@ -26,9 +26,16 @@ DropShield forwards only:
 - `GET /api/products/{productId}/stock`
 - `POST /api/cart`
 - `POST /api/checkout`
+- `POST /api/action-proofs/cart`
+- `POST /api/action-proofs/checkout`
+- `POST /graphql`
+- `POST /checkout/cart/add`
 
 It is not a generic HTTP proxy. Catalogue browsing is forwarded without rate limiting. Stock,
 cart, and checkout policy applies only when `{productId}` is in `DropShield:ProtectedProducts`.
+`POST /graphql` is a shared endpoint: DropShield inspects its JSON envelope only to identify a
+protected `addProductsToCart` mutation for the configured drop, while ordinary GraphQL traffic
+remains outside the protected mutation pipeline.
 
 ## Rate limiting
 
@@ -151,7 +158,7 @@ set returns HTTP 503 `waiting_room_full`; state unavailability returns the same
 mode.
 
 DropShield issues a random 256-bit `DropShield.Session` cookie (HttpOnly, SameSite=Lax,
-Secure on HTTPS) as an opaque lookup key — it carries no admission claim and can be copied or
+Secure on HTTPS and outside Development/Testing) as an opaque lookup key — it carries no admission claim and can be copied or
 replayed on its own; server-side state and the signed proof below are what actually gate
 access.
 
@@ -181,8 +188,9 @@ position promise inappropriate.
 An opaque session cookie identifies state but isn't proof the browser was actually admitted.
 Once admission evaluation succeeds, DropShield issues a compact HMAC-SHA256 token as
 browser-held, locally verifiable proof, carried in a dedicated `DropShield.Admission`
-HttpOnly cookie (separate from `DropShield.Session`; SameSite=Lax, Secure on HTTPS, scoped to
-the protected-stock path).
+HttpOnly cookie (separate from `DropShield.Session`; SameSite=Lax, Secure on HTTPS and outside
+Development/Testing, scoped to `/` because action-proof, GraphQL, and storefront mutation routes
+have no narrower common browser path).
 
 Format: `v1.<base64url UTF-8 JSON payload>.<base64url HMAC>`. The HMAC covers the literal
 `v1.payload` prefix and payload. Claims are limited to `v` (version), `kid` (signing-key ID,

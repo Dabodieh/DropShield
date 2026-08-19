@@ -22,8 +22,8 @@ if (!LocalhostGuard.TryValidate(demoStoreBaseUrl, out var demoStoreUri, out var 
 var report = new DemoReport();
 report.Title("DropShield high-demand product drop demo");
 
-using var demoStoreHttp = new HttpClient { BaseAddress = demoStoreUri, Timeout = TimeSpan.FromSeconds(10) };
-using var dropShieldHandler = new HttpClientHandler { UseCookies = false };
+using var demoStoreHttp = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false }) { BaseAddress = demoStoreUri, Timeout = TimeSpan.FromSeconds(10) };
+using var dropShieldHandler = new HttpClientHandler { AllowAutoRedirect = false, UseCookies = true };
 using var dropShieldHttp = new HttpClient(dropShieldHandler) { BaseAddress = dropShieldUri, Timeout = TimeSpan.FromSeconds(10) };
 
 if (!await CheckHealthAsync(demoStoreHttp, "DemoStore", report) ||
@@ -38,7 +38,7 @@ try
     await Stage2_NormalShopper(dropShieldHttp, report);
     await Stage3_ExcessivePolling(dropShieldHttp, report);
     await Stage4_WaitingRoom(dropShieldHttp, report);
-    var cartShopper = new DropShieldClient(dropShieldHttp, "demo-shopper-cart");
+    using var cartShopper = new DropShieldClient(dropShieldUri, "demo-shopper-cart");
     var (cartOk, actionOutcome) = await Stage5_ActionProofAndCart(cartShopper, report);
     if (cartOk)
     {
@@ -97,7 +97,7 @@ static async Task Stage1_HealthyOrigin(HttpClient demoStore, DemoReport report)
 static async Task Stage2_NormalShopper(HttpClient dropShield, DemoReport report)
 {
     report.Section("2. Normal shopper");
-    var shopper = new DropShieldClient(dropShield, "demo-shopper-normal");
+    using var shopper = new DropShieldClient(dropShield.BaseAddress!, "demo-shopper-normal");
     using var stock = await shopper.GetStockAsync(ProductId, CancellationToken.None);
     report.Line("Stock request", DescribeAdmissionOutcome(stock.StatusCode, shopper.HasAdmissionProof));
 }
@@ -105,7 +105,7 @@ static async Task Stage2_NormalShopper(HttpClient dropShield, DemoReport report)
 static async Task Stage3_ExcessivePolling(HttpClient dropShield, DemoReport report)
 {
     report.Section("3. Excessive stock polling");
-    var poller = new DropShieldClient(dropShield, "demo-shopper-poller");
+    using var poller = new DropShieldClient(dropShield.BaseAddress!, "demo-shopper-poller");
     const int requestCount = 12;
     var forwarded = 0;
     var rateLimited = 0;
@@ -132,9 +132,9 @@ static async Task Stage3_ExcessivePolling(HttpClient dropShield, DemoReport repo
 static async Task Stage4_WaitingRoom(HttpClient dropShield, DemoReport report)
 {
     report.Section("4. Admission / waiting room (demo capacity)");
-    var shopperA = new DropShieldClient(dropShield, "demo-shopper-a");
-    var shopperB = new DropShieldClient(dropShield, "demo-shopper-b");
-    var shopperC = new DropShieldClient(dropShield, "demo-shopper-c");
+    using var shopperA = new DropShieldClient(dropShield.BaseAddress!, "demo-shopper-a");
+    using var shopperB = new DropShieldClient(dropShield.BaseAddress!, "demo-shopper-b");
+    using var shopperC = new DropShieldClient(dropShield.BaseAddress!, "demo-shopper-c");
 
     using var responseA = await shopperA.GetStockAsync(ProductId, CancellationToken.None);
     using var responseB = await shopperB.GetStockAsync(ProductId, CancellationToken.None);

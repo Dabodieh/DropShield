@@ -11,15 +11,11 @@ public sealed class RedisInventoryReservationIntegrationTests
 {
     private const string SigningKey = "AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA=";
 
-    [Fact]
+    [RedisFact]
     [Trait("Category", "RedisIntegration")]
     public async Task ReservationsAreAtomicPrivateAndExpiryDrivenAcrossInstances()
     {
-        var connectionString = Environment.GetEnvironmentVariable("DROPSHIELD_REDIS_TEST_CONNECTION");
-        if (string.IsNullOrWhiteSpace(connectionString))
-        {
-            return;
-        }
+        var connectionString = RedisTestEnvironment.ConnectionString;
 
         var keyPrefix = $"dropshield:test:{Guid.NewGuid():N}";
         var settings = Settings(connectionString, keyPrefix);

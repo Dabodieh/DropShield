@@ -1,22 +1,18 @@
 using DropShield.Api.Admission;
 using DropShield.Api.Options;
 using DropShield.Api.State;
+using DropShield.Tests.Support;
 using Microsoft.Extensions.Options;
 
 namespace DropShield.Tests;
 
 public sealed class RedisAdmissionStateIntegrationTests
 {
-    [Fact]
+    [RedisFact]
     [Trait("Category", "RedisIntegration")]
     public async Task Admission_IsAtomicPrivateAndExpiryDrivenAcrossInstances()
     {
-        var connectionString = Environment.GetEnvironmentVariable(
-            "DROPSHIELD_REDIS_TEST_CONNECTION");
-        if (string.IsNullOrWhiteSpace(connectionString))
-        {
-            return;
-        }
+        var connectionString = RedisTestEnvironment.ConnectionString;
 
         var options = Options.Create(new DropShieldOptions
         {

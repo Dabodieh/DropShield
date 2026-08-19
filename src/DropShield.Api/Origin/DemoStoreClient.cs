@@ -9,7 +9,14 @@ public sealed class DemoStoreClient(HttpClient httpClient) : IDemoStoreClient
         CancellationToken cancellationToken,
         (string HeaderName, string Value)? originAssertionHeader = null)
     {
-        using var request = new HttpRequestMessage(method, path);
+        if (!Uri.TryCreate(path, UriKind.Relative, out var relativePath) ||
+            !path.StartsWith("/", StringComparison.Ordinal) ||
+            path.StartsWith("//", StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("Origin forwarding requires a rooted relative request target.");
+        }
+
+        using var request = new HttpRequestMessage(method, relativePath);
 
         if (method != HttpMethod.Get && HasBody(sourceRequest))
         {

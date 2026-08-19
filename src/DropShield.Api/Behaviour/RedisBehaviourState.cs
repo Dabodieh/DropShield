@@ -17,6 +17,11 @@ public sealed class RedisBehaviourState(
         redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', cutoff)
         if ARGV[3] ~= '' then
           redis.call('ZADD', KEYS[1], now, ARGV[3])
+          local maximumEvents = tonumber(ARGV[4])
+          local eventCount = redis.call('ZCARD', KEYS[1])
+          if eventCount > maximumEvents then
+            redis.call('ZREMRANGEBYRANK', KEYS[1], 0, eventCount - maximumEvents - 1)
+          end
           redis.call('PEXPIRE', KEYS[1], tonumber(ARGV[2]))
         end
         local events = redis.call('ZRANGEBYSCORE', KEYS[1], cutoff, '+inf')
@@ -66,6 +71,7 @@ public sealed class RedisBehaviourState(
                     (long)TimeSpan.FromSeconds(_options.BehaviourScoring.ObservationWindowSeconds).TotalMilliseconds,
                     (long)TimeSpan.FromSeconds(_options.BehaviourScoring.StateTtlSeconds).TotalMilliseconds,
                     eventMember,
+                    _options.BehaviourScoring.MaximumEventsPerActor,
                 ]).WaitAsync(cancellationToken);
             var values = (RedisResult[])result!;
             return new BehaviourEvidence(

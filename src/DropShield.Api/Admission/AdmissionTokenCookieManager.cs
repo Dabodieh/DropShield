@@ -3,7 +3,9 @@ using Microsoft.Extensions.Options;
 
 namespace DropShield.Api.Admission;
 
-public sealed class AdmissionTokenCookieManager(IOptions<DropShieldOptions> options)
+public sealed class AdmissionTokenCookieManager(
+    IOptions<DropShieldOptions> options,
+    IHostEnvironment environment)
 {
     private readonly DropShieldOptions _options = options.Value;
 
@@ -25,12 +27,14 @@ public sealed class AdmissionTokenCookieManager(IOptions<DropShieldOptions> opti
     private CookieOptions CreateOptions(HttpContext context) => new()
     {
         HttpOnly = true,
-        Secure = context.Request.IsHttps,
+        Secure = CookieSecurityPolicy.ShouldUseSecureCookie(context, environment),
         SameSite = SameSiteMode.Lax,
         IsEssential = true,
         Path = GetPath(),
         MaxAge = TimeSpan.FromSeconds(_options.AdmissionTokens.LifetimeSeconds),
     };
 
-    private string GetPath() => $"/api/products/{_options.Admission.ProtectedProduct}/stock";
+    // Protected token consumers span /api, /graphql, and /checkout; root is their narrowest
+    // common browser cookie path. The token remains HttpOnly and session-bound.
+    private static string GetPath() => "/";
 }

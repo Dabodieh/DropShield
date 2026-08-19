@@ -18,6 +18,8 @@ internal sealed class RecordingDemoStoreClient : IDemoStoreClient
 
     public byte[]? LastForwardedBody { get; private set; }
 
+    public string? LastForwardedPath { get; private set; }
+
     public int GetRequestCount(string path) =>
         _requestCounts.GetValueOrDefault(path);
 
@@ -29,6 +31,7 @@ internal sealed class RecordingDemoStoreClient : IDemoStoreClient
         (string HeaderName, string Value)? originAssertionHeader = null)
     {
         LastOriginAssertionHeader = originAssertionHeader;
+        LastForwardedPath = path;
         LastForwardedBody = await CaptureBodyAsync(sourceRequest, cancellationToken);
         if (ThrowOnSend)
         {
@@ -37,7 +40,7 @@ internal sealed class RecordingDemoStoreClient : IDemoStoreClient
 
         _requestCounts.AddOrUpdate(path, 1, (_, count) => count + 1);
 
-        var response = (method.Method, path) switch
+        var response = (method.Method, path.Split('?', 2)[0]) switch
         {
             ("GET", "/api/products") => Json(
                 HttpStatusCode.OK,

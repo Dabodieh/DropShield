@@ -88,6 +88,7 @@ public sealed partial class DropShieldOptionsValidator(IHostEnvironment environm
         ValidateOriginAssertions(options, isControlledEnvironment, failures);
         ValidateInternalHashing(options, isControlledEnvironment, failures);
         ValidateEdgeTrust(options, isControlledEnvironment, failures);
+        ValidateKeySeparation(options, failures);
 
         return failures.Count == 0
             ? ValidateOptionsResult.Success
@@ -287,18 +288,6 @@ public sealed partial class DropShieldOptionsValidator(IHostEnvironment environm
                 "DropShield:ActionProofs:SigningKey must be Base64-encoded and contain at least 32 random bytes.");
         }
 
-        if (string.Equals(proofs.SigningKey, options.AdmissionTokens.SigningKey, StringComparison.Ordinal))
-        {
-            failures.Add(
-                "DropShield:ActionProofs:SigningKey must not reuse the admission token signing key.");
-        }
-
-        if (string.Equals(proofs.SigningKey, options.OriginAssertions.SigningKey, StringComparison.Ordinal))
-        {
-            failures.Add(
-                "DropShield:ActionProofs:SigningKey must not reuse the origin assertion signing key.");
-        }
-
         CryptographicOperations.ZeroMemory(key);
     }
 
@@ -413,18 +402,6 @@ public sealed partial class DropShieldOptionsValidator(IHostEnvironment environm
                 "DropShield:OriginAssertions:SigningKey must be Base64-encoded and contain at least 32 random bytes.");
         }
 
-        if (string.Equals(assertions.SigningKey, options.AdmissionTokens.SigningKey, StringComparison.Ordinal))
-        {
-            failures.Add(
-                "DropShield:OriginAssertions:SigningKey must not reuse the admission token signing key.");
-        }
-
-        if (string.Equals(assertions.SigningKey, options.ActionProofs.SigningKey, StringComparison.Ordinal))
-        {
-            failures.Add(
-                "DropShield:OriginAssertions:SigningKey must not reuse the action proof signing key.");
-        }
-
         CryptographicOperations.ZeroMemory(key);
     }
 
@@ -498,18 +475,75 @@ public sealed partial class DropShieldOptionsValidator(IHostEnvironment environm
             return;
         }
 
-        if (edge.SharedKey.Length < 32)
+        try
         {
-            failures.Add("DropShield:EdgeTrust:SharedKey must contain at least 32 characters.");
-        }
+            var key = Convert.FromBase64String(edge.SharedKey);
+            if (key.Length < 32)
+            {
+                failures.Add("DropShield:EdgeTrust:SharedKey must be Base64-encoded and contain at least 32 random bytes.");
+            }
 
-        if (string.Equals(edge.SharedKey, options.AdmissionTokens.SigningKey, StringComparison.Ordinal) ||
-            string.Equals(edge.SharedKey, options.ActionProofs.SigningKey, StringComparison.Ordinal) ||
-            string.Equals(edge.SharedKey, options.OriginAssertions.SigningKey, StringComparison.Ordinal) ||
-            string.Equals(edge.SharedKey, options.InternalHashing.SigningKey, StringComparison.Ordinal))
+            CryptographicOperations.ZeroMemory(key);
+        }
+        catch (FormatException)
         {
-            failures.Add(
-                "DropShield:EdgeTrust:SharedKey must not reuse another DropShield signing key.");
+            failures.Add("DropShield:EdgeTrust:SharedKey must be Base64-encoded and contain at least 32 random bytes.");
+        }
+    }
+
+    private static void ValidateKeySeparation(
+        DropShieldOptions options,
+        ICollection<string> failures)
+    {
+        var configuredKeys = new (string Purpose, string Value)[]
+        {
+            ("admission signing", options.AdmissionTokens.SigningKey),
+            ("action-proof signing", options.ActionProofs.SigningKey),
+            ("origin-assertion signing", options.OriginAssertions.SigningKey),
+            ("internal hashing", options.InternalHashing.SigningKey),
+            ("edge trust", options.EdgeTrust.SharedKey),
+        };
+        var decodedKeys = new List<(string Purpose, byte[] Material)>();
+        try
+        {
+            foreach (var (purpose, value) in configuredKeys)
+            {
+                if (string.IsNullOrWhiteSpace(value))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    decodedKeys.Add((purpose, Convert.FromBase64String(value)));
+                }
+                catch (FormatException)
+                {
+                    // The purpose-specific validator reports the configuration error.
+                }
+            }
+
+            for (var left = 0; left < decodedKeys.Count; left++)
+            {
+                for (var right = left + 1; right < decodedKeys.Count; right++)
+                {
+                    if (decodedKeys[left].Material.Length == decodedKeys[right].Material.Length &&
+                        CryptographicOperations.FixedTimeEquals(
+                            decodedKeys[left].Material,
+                            decodedKeys[right].Material))
+                    {
+                        failures.Add(
+                            $"DropShield configured key material must not be reused between {decodedKeys[left].Purpose} and {decodedKeys[right].Purpose}.");
+                    }
+                }
+            }
+        }
+        finally
+        {
+            foreach (var (_, material) in decodedKeys)
+            {
+                CryptographicOperations.ZeroMemory(material);
+            }
         }
     }
 

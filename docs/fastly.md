@@ -109,12 +109,13 @@ client. `EdgeTrustMiddleware` in DropShield.Api independently strips and checks 
 itself — a security guarantee here does not depend solely on VCL stripping, since DropShield.Api
 may be reachable directly (see Direct access below).
 
-The edge trust key is a dedicated secret with one job: proving "this request passed through the
-edge." It is never reused for admission tokens, action proofs, origin assertions, or the
-internal HMAC hashing key — `DropShieldOptionsValidator` rejects configuration that reuses any
-of those keys as the edge trust key. `EdgeTrust` is disabled by default, matching the project's
-current direct-access PoC deployment model; a production deployment fronted by Fastly should
-enable it.
+The edge trust key is a dedicated Base64-encoded secret of at least 32 random bytes with one
+job: proving "this request passed through the edge." The edge dictionary sends that configured
+Base64 value verbatim. It is never reused for admission tokens, action proofs, origin
+assertions, or the internal HMAC hashing key — `DropShieldOptionsValidator` compares decoded
+material and rejects configuration that reuses it. `EdgeTrust` is disabled by default, matching
+the project's current direct-access PoC deployment model; a production deployment fronted by
+Fastly should enable it.
 
 ## Direct access
 
@@ -143,6 +144,11 @@ that puts Fastly in front of DropShield.Api will see Fastly's own connection IP 
 address unless DropShield.Api is updated to trust Fastly's documented client-IP header
 (`Fastly-Client-IP`) from a verified Fastly connection — that is future work, called out here
 rather than silently left inconsistent.
+
+DropShield cookies remain `Secure` whenever the public request is HTTPS or the API runs outside
+Development/Testing. This deliberately remains true when a trusted edge terminates TLS and uses
+plain HTTP to the local DropShield hop; DropShield does not trust arbitrary forwarded-proto
+headers from clients.
 
 ## Internal diagnostics
 

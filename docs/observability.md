@@ -77,6 +77,9 @@ payloads.
 | `stock` | `GET /api/products/{productId}/stock` |
 | `cart` | `POST /api/cart` |
 | `checkout` | `POST /api/checkout` |
+| `actionProof` | `POST /api/action-proofs/{action}` |
+| `graphqlCartAdd` | `POST /graphql` |
+| `storefrontCartAdd` | `POST /checkout/cart/add` |
 
 Arbitrary paths, product IDs, client IDs, and headers never become metric labels.
 `protectedStock` is one fixed aggregate for `DropShield:ProtectedProducts` members, not a

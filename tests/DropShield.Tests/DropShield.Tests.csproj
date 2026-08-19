@@ -24,6 +24,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\DropShield.Api\DropShield.Api.csproj" />
     <ProjectReference Include="..\..\src\DropShield.DemoStore\DropShield.DemoStore.csproj" />
+    <ProjectReference Include="..\..\demo\DropShield.Demo\DropShield.Demo.csproj" />
   </ItemGroup>
 
 </Project>

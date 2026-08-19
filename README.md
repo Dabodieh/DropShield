@@ -30,6 +30,17 @@ local development.
 None of this is presented as production-ready. It is a working demonstration of the protection
 model, backed by measured local benchmarks — see [benchmarks](docs/benchmarks.md).
 
+## Run the demo
+
+```powershell
+dotnet run --project demo/DropShield.Demo --configuration Release
+```
+
+A scripted walkthrough of the full protection flow — normal traffic, excessive polling,
+admission/waiting, action proof, replay rejection, reservation, and checkout — against a local
+DemoStore and DropShield.Api instance. See [docs/demo.md](docs/demo.md) for prerequisites and
+what it does and does not prove.
+
 ## Architecture
 
 ```text
@@ -52,6 +63,7 @@ Deeper documentation:
   connector.
 - [Fastly](docs/fastly.md) — reference edge adapter; not evidence of any retailer's production
   edge.
+- [Demo](docs/demo.md) — the scripted local walkthrough above, stage by stage.
 - [Benchmarks](docs/benchmarks.md) — measured unprotected vs. protected throughput/latency.
 - [Roadmap](docs/ROADMAP.md).
 
@@ -65,6 +77,7 @@ Deeper documentation:
 - `load-tests` — localhost-only k6 scenarios (smoke, normal customer, flash crowd, aggressive
   polling, mixed drop).
 - `integrations/adobe-commerce/DropShield_Connector` — the Magento 2 connector.
+- `demo/DropShield.Demo` — the local scripted demo runner (see [docs/demo.md](docs/demo.md)).
 - `contracts/origin-assertion-v1.json` — the language-neutral origin-assertion wire format and
   a cross-language test vector.
 

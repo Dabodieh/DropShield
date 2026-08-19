@@ -10,6 +10,8 @@
                         </resource>
                     </resource>
                 </resource>
+                <resource id="DropShield_Connector::protected_drops" title="Manage DropShield Protected Drops" sortOrder="10"/>
+                <resource id="DropShield_Connector::protection_manifest" title="Read DropShield Protection Manifest" sortOrder="20"/>
             </resource>
         </resources>
     </acl>

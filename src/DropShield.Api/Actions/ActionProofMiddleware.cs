@@ -1,6 +1,7 @@
 using DropShield.Api.Models;
 using DropShield.Api.Behaviour;
 using DropShield.Api.Options;
+using DropShield.Api.Catalog;
 using DropShield.Api.Traffic;
 using Microsoft.Extensions.Options;
 
@@ -17,6 +18,7 @@ public sealed class ActionProofMiddleware(RequestDelegate next)
         BehaviourActivityRecorder behaviourRecorder,
         TrafficMetrics metrics,
         IOptions<DropShieldOptions> options,
+        IProtectedDropCatalog catalog,
         ILogger<ActionProofMiddleware> logger)
     {
         var configuredOptions = options.Value;
@@ -54,9 +56,11 @@ public sealed class ActionProofMiddleware(RequestDelegate next)
             return;
         }
 
+        var dropId = context.Features.Get<TrafficRequestObservation>()?.ProtectedDropId ??
+                     catalog.GetActiveDrop()?.DropId ?? string.Empty;
         var validation = tokenService.Validate(
             tokenValues[0]!,
-            configuredOptions.Admission.ProtectedProduct,
+            dropId,
             admission.SessionId!,
             action);
         metrics.RecordActionTokenValidation(validation);

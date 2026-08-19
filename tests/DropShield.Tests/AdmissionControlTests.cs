@@ -127,7 +127,7 @@ public sealed class AdmissionControlTests
     private static Dictionary<string, string?> AdmissionSettings() => new()
     {
         ["DropShield:Admission:Enabled"] = "true",
-        ["DropShield:Admission:ProtectedProduct"] = "pokemon-etb",
+        ["DropShield:Admission:DropId"] = "pokemon-etb",
         ["DropShield:Admission:MaximumActiveSessions"] = "1",
         ["DropShield:Admission:AdmissionBatchSize"] = "1",
         ["DropShield:Admission:MaximumWaitingSessions"] = "10",

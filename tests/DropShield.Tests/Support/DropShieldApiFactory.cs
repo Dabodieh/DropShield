@@ -2,6 +2,7 @@ using DropShield.Api;
 using DropShield.Api.Admission;
 using DropShield.Api.Actions;
 using DropShield.Api.Behaviour;
+using DropShield.Api.Catalog;
 using DropShield.Api.Inventory;
 using DropShield.Api.Origin;
 using DropShield.Api.State;
@@ -21,7 +22,8 @@ internal sealed class DropShieldApiFactory(
     TimeProvider? timeProvider = null,
     IReplayState? replayState = null,
     IInventoryReservationState? inventoryState = null,
-    IBehaviourState? behaviourState = null)
+    IBehaviourState? behaviourState = null,
+    IProtectedDropCatalog? protectedDropCatalog = null)
     : WebApplicationFactory<ApiAssemblyMarker>
 {
     private readonly IReadOnlyDictionary<string, string?> _overrides = overrides ??
@@ -76,6 +78,18 @@ internal sealed class DropShieldApiFactory(
                 services.RemoveAll<IBehaviourState>();
                 services.AddSingleton(behaviourState);
             }
+
+            if (protectedDropCatalog is not null)
+            {
+                services.RemoveAll<IProtectedDropCatalog>();
+                services.AddSingleton(protectedDropCatalog);
+            }
+            else if (_overrides.TryGetValue("DropShield:OriginMode", out var originMode) &&
+                     string.Equals(originMode, "AdobeCommerce", StringComparison.OrdinalIgnoreCase))
+            {
+                services.RemoveAll<IProtectedDropCatalog>();
+                services.AddSingleton<IProtectedDropCatalog>(new StaticProtectedDropCatalog("pokemon-etb", (2, "pokemon-etb")));
+            }
         });
     }
 
@@ -87,12 +101,19 @@ internal sealed class DropShieldApiFactory(
         ["DropShield:OriginTimeoutSeconds"] = "10",
         ["DropShield:OriginMode"] = "DemoStore",
         ["DropShield:AdobeCommerce:MaximumProtectedRequestBodyBytes"] = "262144",
+        ["DropShield:AdobeCommerce:ProtectionManifest:Enabled"] = "true",
+        ["DropShield:AdobeCommerce:ProtectionManifest:EndpointPath"] = "/rest/V1/dropshield/protection-manifest",
+        ["DropShield:AdobeCommerce:ProtectionManifest:AccessToken"] = "test-manifest-token",
+        ["DropShield:AdobeCommerce:ProtectionManifest:RefreshIntervalSeconds"] = "30",
+        ["DropShield:AdobeCommerce:ProtectionManifest:StaleAfterSeconds"] = "300",
+        ["DropShield:AdobeCommerce:ProtectionManifest:MaximumResponseBytes"] = "262144",
+        ["DropShield:AdobeCommerce:ProtectionManifest:MaximumProducts"] = "10000",
         ["DropShield:ProtectedProducts:0"] = "pokemon-etb",
         ["DropShield:SyntheticClientIdentity:Enabled"] = "true",
         ["DropShield:SyntheticClientIdentity:HeaderName"] = "X-DropShield-Test-Client",
         ["DropShield:InternalMetrics:Enabled"] = "true",
         ["DropShield:Admission:Enabled"] = "false",
-        ["DropShield:Admission:ProtectedProduct"] = "pokemon-etb",
+        ["DropShield:Admission:DropId"] = "pokemon-etb",
         ["DropShield:Admission:MaximumActiveSessions"] = "200",
         ["DropShield:Admission:AdmissionBatchSize"] = "20",
         ["DropShield:Admission:MaximumWaitingSessions"] = "2000",

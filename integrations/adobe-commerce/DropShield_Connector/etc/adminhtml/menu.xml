@@ -1,0 +1,6 @@
+<?xml version="1.0"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Backend:etc/menu.xsd">
+    <menu>
+        <add id="DropShield_Connector::protected_drops" title="Protected Drops" module="DropShield_Connector" sortOrder="90" parent="Magento_Backend::marketing" action="dropshield/drop/index" resource="DropShield_Connector::protected_drops"/>
+    </menu>
+</config>

@@ -1,6 +1,7 @@
 using DropShield.Api.Admission;
 using DropShield.Api.Actions;
 using DropShield.Api.Options;
+using DropShield.Api.Catalog;
 using DropShield.Api.Traffic;
 using Microsoft.Extensions.Options;
 
@@ -9,6 +10,7 @@ namespace DropShield.Api.State;
 public sealed class RedisTrafficPolicyEvaluator(
     IDistributedTrafficState state,
     ClientIdentityProvider identityProvider,
+    IProtectedDropCatalog catalog,
     IOptions<DropShieldOptions> options)
 {
     private readonly DropShieldOptions _options = options.Value;
@@ -25,9 +27,7 @@ public sealed class RedisTrafficPolicyEvaluator(
         var route = TrafficRouteClassifier.Classify(context.Request);
         return route switch
         {
-            TrafficRoute.Stock when TrafficRouteClassifier.IsProtectedStockRequest(
-                context.Request,
-                _options.ProtectedProducts) =>
+            TrafficRoute.Stock when IsProtectedStock(context) =>
                 await EvaluateProtectedStockAsync(context, cancellationToken),
             TrafficRoute.Cart => await EvaluateClientPolicyAsync(
                 context,
@@ -82,7 +82,7 @@ public sealed class RedisTrafficPolicyEvaluator(
             return clientDecision;
         }
 
-        if (AdmissionPolicy.AppliesTo(context.Request, _options))
+        if (AdmissionPolicy.AppliesTo(context.Request, _options, catalog))
         {
             return RedisTrafficPolicyDecision.Allowed;
         }
@@ -103,6 +103,10 @@ public sealed class RedisTrafficPolicyEvaluator(
                 RateLimitReason.Aggregate,
                 aggregateLease.RetryAfter);
     }
+
+    private bool IsProtectedStock(HttpContext context) =>
+        TrafficRouteClassifier.GetProductId(context.Request) is { } productId &&
+        catalog.TryResolveSku(productId, out _);
 
     private async ValueTask<RedisTrafficPolicyDecision> EvaluateClientPolicyAsync(
         HttpContext context,

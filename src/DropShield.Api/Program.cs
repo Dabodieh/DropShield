@@ -1,6 +1,7 @@
 using DropShield.Api.Admission;
 using DropShield.Api.Actions;
 using DropShield.Api.Behaviour;
+using DropShield.Api.Catalog;
 using DropShield.Api.Inventory;
 using DropShield.Api.Models;
 using DropShield.Api.Options;
@@ -17,6 +18,13 @@ builder.Services
     .BindConfiguration(DropShieldOptions.SectionName)
     .ValidateOnStart();
 builder.Services.AddSingleton<IValidateOptions<DropShieldOptions>, DropShieldOptionsValidator>();
+builder.Services.AddSingleton<DemoStoreProtectedDropCatalog>();
+builder.Services.AddSingleton<AdobeCommerceProtectedDropCatalog>();
+builder.Services.AddSingleton<IProtectedDropCatalog>(services =>
+    services.GetRequiredService<IOptions<DropShieldOptions>>().Value.OriginMode == OriginMode.AdobeCommerce
+        ? services.GetRequiredService<AdobeCommerceProtectedDropCatalog>()
+        : services.GetRequiredService<DemoStoreProtectedDropCatalog>());
+builder.Services.AddHostedService(services => services.GetRequiredService<AdobeCommerceProtectedDropCatalog>());
 builder.Services.AddSingleton<ClientIdentityProvider>();
 builder.Services.AddSingleton<InternalHashingKeyProvider>();
 builder.Services.AddSingleton(TimeProvider.System);
@@ -75,6 +83,12 @@ builder.Services.AddHttpClient<IDemoStoreClient, DemoStoreClient>((services, cli
 {
     AllowAutoRedirect = false,
 });
+builder.Services.AddHttpClient("CommerceProtectionManifest", (services, client) =>
+{
+    var options = services.GetRequiredService<IOptions<DropShieldOptions>>().Value;
+    client.BaseAddress = new Uri(options.OriginBaseUrl, UriKind.Absolute);
+    client.Timeout = TimeSpan.FromSeconds(options.OriginTimeoutSeconds);
+}).ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false });
 builder.Services.AddRateLimiter(_ => { });
 builder.Services.AddSingleton<
     IConfigureOptions<Microsoft.AspNetCore.RateLimiting.RateLimiterOptions>,
@@ -149,6 +163,7 @@ app.MapGet(
         HttpContext context,
         DemoStoreForwarder forwarder,
         IOptions<DropShieldOptions> options,
+        IProtectedDropCatalog catalog,
         CancellationToken cancellationToken) =>
     {
         // Commerce has no equivalent to the demonstration stock endpoint. Keep this
@@ -157,7 +172,7 @@ app.MapGet(
         if (options.Value.OriginMode == OriginMode.AdobeCommerce &&
             string.Equals(
                 productId,
-                options.Value.Admission.ProtectedProduct,
+                catalog.GetActiveDrop()?.DropId,
                 StringComparison.OrdinalIgnoreCase))
         {
             await context.Response.WriteAsJsonAsync(
@@ -213,22 +228,22 @@ app.MapPost(
         CancellationToken cancellationToken) =>
         ForwardCommerceAsync(context, forwarder, options.Value, cancellationToken));
 
-app.MapGet("/internal/inventory", async (IInventoryReservationState state, IOptions<DropShieldOptions> options, IHostEnvironment environment, CancellationToken cancellationToken) =>
+app.MapGet("/internal/inventory", async (IInventoryReservationState state, IOptions<DropShieldOptions> options, IHostEnvironment environment, IProtectedDropCatalog catalog, CancellationToken cancellationToken) =>
     !InternalDiagnosticsAreAvailable(options.Value, environment)
         ? Results.NotFound()
-        : Results.Ok(await state.GetSnapshotAsync(options.Value.Admission.ProtectedProduct, cancellationToken)));
+        : Results.Ok(await state.GetSnapshotAsync(catalog.GetActiveDrop()?.DropId ?? string.Empty, cancellationToken)));
 
 app.MapPost(
     "/api/action-proofs/cart",
     (HttpContext context, AdmissionProofAuthorizer authorizer, IActionTokenService tokenService,
-        TrafficMetrics metrics, IOptions<DropShieldOptions> options, CancellationToken cancellationToken) =>
-        IssueActionProofAsync(context, ActionKind.Cart, authorizer, tokenService, metrics, options.Value, cancellationToken));
+        TrafficMetrics metrics, IOptions<DropShieldOptions> options, IProtectedDropCatalog catalog, CancellationToken cancellationToken) =>
+        IssueActionProofAsync(context, ActionKind.Cart, authorizer, tokenService, metrics, options.Value, catalog, cancellationToken));
 
 app.MapPost(
     "/api/action-proofs/checkout",
     (HttpContext context, AdmissionProofAuthorizer authorizer, IActionTokenService tokenService,
-        TrafficMetrics metrics, IOptions<DropShieldOptions> options, CancellationToken cancellationToken) =>
-        IssueActionProofAsync(context, ActionKind.Checkout, authorizer, tokenService, metrics, options.Value, cancellationToken));
+        TrafficMetrics metrics, IOptions<DropShieldOptions> options, IProtectedDropCatalog catalog, CancellationToken cancellationToken) =>
+        IssueActionProofAsync(context, ActionKind.Checkout, authorizer, tokenService, metrics, options.Value, catalog, cancellationToken));
 
 app.MapGet(
     "/internal/metrics",
@@ -241,6 +256,13 @@ app.MapGet(
 
         return Results.Ok(metrics.GetSnapshot());
     });
+
+app.MapGet(
+    "/internal/protection-manifest-status",
+    (IProtectedDropCatalog catalog, IOptions<DropShieldOptions> options, IHostEnvironment environment) =>
+        !InternalDiagnosticsAreAvailable(options.Value, environment)
+            ? Results.NotFound()
+            : Results.Ok(catalog.Status));
 
 app.MapPost(
     "/internal/metrics/reset",
@@ -289,6 +311,7 @@ static async Task<IResult> IssueActionProofAsync(
     IActionTokenService tokenService,
     TrafficMetrics metrics,
     DropShieldOptions options,
+    IProtectedDropCatalog catalog,
     CancellationToken cancellationToken)
 {
     if (!options.ActionProofs.Enabled)
@@ -315,8 +338,16 @@ static async Task<IResult> IssueActionProofAsync(
             statusCode: StatusCodes.Status403Forbidden);
     }
 
+    var dropId = catalog.GetActiveDrop()?.DropId;
+    if (string.IsNullOrEmpty(dropId) || !catalog.Status.IsUsable)
+    {
+        return Results.Json(
+            new GatewayErrorResponse("protection_catalog_unavailable", "Protected-product configuration is temporarily unavailable."),
+            statusCode: StatusCodes.Status503ServiceUnavailable);
+    }
+
     var token = tokenService.Issue(
-        options.Admission.ProtectedProduct,
+        dropId,
         admission.SessionId!,
         action);
     metrics.RecordActionTokenIssued(action);

@@ -3,6 +3,7 @@ using DropShield.Api.Admission;
 using DropShield.Api.Actions;
 using DropShield.Api.Behaviour;
 using DropShield.Api.Options;
+using DropShield.Api.Catalog;
 using Microsoft.AspNetCore.RateLimiting;
 
 namespace DropShield.Api.Traffic;
@@ -28,9 +29,7 @@ public static class TrafficPolicy
         {
             var httpContext = rejectionContext.HttpContext;
             var route = TrafficRouteClassifier.Classify(httpContext.Request);
-            var isProtectedStock = TrafficRouteClassifier.IsProtectedStockRequest(
-                httpContext.Request,
-                options.ProtectedProducts);
+            var isProtectedStock = IsProtectedStock(httpContext);
             var reason = route switch
             {
                 TrafficRoute.Cart or TrafficRoute.Checkout or TrafficRoute.ActionProof
@@ -112,10 +111,8 @@ public static class TrafficPolicy
         var stockPolicy = options.Policies.Stock;
         if (!options.Enabled ||
             !stockPolicy.Enabled ||
-            AdmissionPolicy.AppliesTo(context.Request, options) ||
-            !TrafficRouteClassifier.IsProtectedStockRequest(
-                context.Request,
-                options.ProtectedProducts))
+            AdmissionPolicy.AppliesTo(context.Request, options, context.RequestServices.GetRequiredService<IProtectedDropCatalog>()) ||
+            !IsProtectedStock(context))
         {
             return RateLimitPartition.GetNoLimiter("aggregate-unlimited");
         }
@@ -135,9 +132,7 @@ public static class TrafficPolicy
         var request = context.Request;
         return route switch
         {
-            TrafficRoute.Stock when TrafficRouteClassifier.IsProtectedStockRequest(
-                request,
-                options.ProtectedProducts) =>
+            TrafficRoute.Stock when IsProtectedStock(context) =>
                 options.Policies.Stock,
             TrafficRoute.Cart => options.Policies.Cart,
             TrafficRoute.Checkout => options.Policies.Checkout,
@@ -152,6 +147,11 @@ public static class TrafficPolicy
             _ => null,
         };
     }
+
+    private static bool IsProtectedStock(HttpContext context) =>
+        TrafficRouteClassifier.Classify(context.Request) == TrafficRoute.Stock &&
+        TrafficRouteClassifier.GetProductId(context.Request) is { } productId &&
+        context.RequestServices.GetRequiredService<IProtectedDropCatalog>().TryResolveSku(productId, out _);
 
     private static FixedWindowRateLimiterOptions CreateFixedWindowOptions(
         int permitLimit,

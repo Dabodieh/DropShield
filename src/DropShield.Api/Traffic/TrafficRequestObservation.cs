@@ -23,6 +23,9 @@ public sealed class TrafficRequestObservation(bool isProtectedStock)
 
     public byte[]? BufferedBody { get; set; }
 
+    /// <summary>The manifest-resolved drop, never a shopper supplied identifier.</summary>
+    public string? ProtectedDropId { get; set; }
+
     public ActionKind? ProtectedAction => IsCommerceCheckoutMutation
         ? ActionKind.Checkout
         : IsProtectedCommerceCartMutation || IsProtectedGraphQlCartMutation

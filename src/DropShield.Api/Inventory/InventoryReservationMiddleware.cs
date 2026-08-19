@@ -2,6 +2,7 @@ using DropShield.Api.Actions;
 using DropShield.Api.Models;
 using DropShield.Api.Options;
 using DropShield.Api.Traffic;
+using DropShield.Api.Catalog;
 using Microsoft.Extensions.Options;
 
 namespace DropShield.Api.Inventory;
@@ -13,6 +14,7 @@ public sealed class InventoryReservationMiddleware(RequestDelegate next)
         IInventoryReservationState state,
         IOptions<DropShieldOptions> options,
         TrafficMetrics metrics,
+        IProtectedDropCatalog catalog,
         ILogger<InventoryReservationMiddleware> logger)
     {
         var configured = options.Value;
@@ -31,12 +33,19 @@ public sealed class InventoryReservationMiddleware(RequestDelegate next)
         }
 
         var isCart = ActionProofPolicy.GetMutationAction(context) == ActionKind.Cart;
+        var dropId = context.Features.Get<TrafficRequestObservation>()?.ProtectedDropId ??
+                     catalog.GetActiveDrop()?.DropId;
+        if (string.IsNullOrEmpty(dropId))
+        {
+            await next(context);
+            return;
+        }
         ReservationResult reservation;
         try
         {
             reservation = isCart
-                ? await state.TryReserveAsync(configured.Admission.ProtectedProduct, sessionId, context.RequestAborted)
-                : await state.GetActiveAsync(configured.Admission.ProtectedProduct, sessionId, context.RequestAborted);
+                ? await state.TryReserveAsync(dropId, sessionId, context.RequestAborted)
+                : await state.GetActiveAsync(dropId, sessionId, context.RequestAborted);
             metrics.RecordReservation(reservation.Status, reservation.ExpiredReservations);
         }
         catch (InventoryReservationStateUnavailableException exception)
@@ -75,7 +84,7 @@ public sealed class InventoryReservationMiddleware(RequestDelegate next)
             if (isCart && reservation.Status == ReservationStatus.Reserved && context.Response.StatusCode >= 400)
             {
                 var released = await state.ReleaseAsync(
-                    configured.Admission.ProtectedProduct,
+                    dropId,
                     sessionId,
                     context.RequestAborted);
                 metrics.RecordReservation(released.Status, released.ExpiredReservations);
@@ -84,7 +93,7 @@ public sealed class InventoryReservationMiddleware(RequestDelegate next)
             if (!isCart && context.Response.StatusCode is >= 200 and < 300)
             {
                 var committed = await state.CommitAsync(
-                    configured.Admission.ProtectedProduct,
+                    dropId,
                     sessionId,
                     context.RequestAborted);
                 metrics.RecordReservation(committed.Status, committed.ExpiredReservations);

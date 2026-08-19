@@ -244,7 +244,7 @@ public sealed class GraphQlAndStorefrontCartTests
         ["DropShield:OriginAssertions:LifetimeSeconds"] = "20",
         ["DropShield:OriginAssertions:SigningKey"] = SigningKey,
         ["DropShield:ProtectedProducts:0"] = "pokemon-etb",
-        ["DropShield:Admission:ProtectedProduct"] = "pokemon-etb",
+        ["DropShield:Admission:DropId"] = "pokemon-etb",
         ["DropShield:Policies:Stock:ClientPermitLimit"] = "100",
         ["DropShield:Policies:Cart:ClientPermitLimit"] = "100",
         ["DropShield:Policies:Checkout:ClientPermitLimit"] = "100",

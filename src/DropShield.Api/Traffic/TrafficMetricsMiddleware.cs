@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using DropShield.Api.Actions;
 using DropShield.Api.Behaviour;
+using DropShield.Api.Catalog;
 using DropShield.Api.Options;
 using Microsoft.Extensions.Options;
 
@@ -12,6 +13,7 @@ public sealed class TrafficMetricsMiddleware(RequestDelegate next)
         HttpContext context,
         TrafficMetrics metrics,
         BehaviourActivityRecorder behaviourRecorder,
+        IProtectedDropCatalog catalog,
         IOptions<DropShieldOptions> options,
         ILogger<TrafficMetricsMiddleware> logger)
     {
@@ -24,9 +26,7 @@ public sealed class TrafficMetricsMiddleware(RequestDelegate next)
             return;
         }
 
-        var isProtectedStock = TrafficRouteClassifier.IsProtectedStockRequest(
-            context.Request,
-            options.Value.ProtectedProducts);
+        var isProtectedStock = IsProtectedStockRequest(context.Request, catalog);
         var observation = new TrafficRequestObservation(isProtectedStock);
         context.Features.Set(observation);
         metrics.RecordIncoming(route, isProtectedStock);
@@ -40,6 +40,7 @@ public sealed class TrafficMetricsMiddleware(RequestDelegate next)
                 route,
                 observation,
                 options.Value,
+                catalog,
                 context.RequestAborted);
             await next(context);
         }
@@ -50,6 +51,15 @@ public sealed class TrafficMetricsMiddleware(RequestDelegate next)
             {
                 error = "request_too_large",
                 message = "The protected request body exceeds the configured limit.",
+            }, context.RequestAborted);
+        }
+        catch (ProtectedCatalogUnavailableException)
+        {
+            context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+            await context.Response.WriteAsJsonAsync(new
+            {
+                error = "protection_catalog_unavailable",
+                message = "Protected-product configuration is temporarily unavailable.",
             }, context.RequestAborted);
         }
         catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
@@ -123,19 +133,32 @@ public sealed class TrafficMetricsMiddleware(RequestDelegate next)
         TrafficRoute route,
         TrafficRequestObservation observation,
         DropShieldOptions options,
+        IProtectedDropCatalog catalog,
         CancellationToken cancellationToken)
     {
+        if (options.OriginMode == OriginMode.AdobeCommerce &&
+            route is TrafficRoute.CommerceRestCart or TrafficRoute.CommerceRestCheckout or
+                TrafficRoute.GraphQlCartAdd or TrafficRoute.StorefrontCartAdd &&
+            !catalog.Status.IsUsable)
+        {
+            // A missing/stale manifest could omit a newly protected product. Do not infer it is
+            // ordinary; the Commerce connector independently remains authoritative.
+            throw new ProtectedCatalogUnavailableException();
+        }
+
         if (route == TrafficRoute.CommerceRestCheckout &&
             options.OriginMode == OriginMode.AdobeCommerce)
         {
-            // A checkout request contains no reliable SKU. The first Commerce profile therefore
-            // requires a checkout action proof for this allow-listed guest-cart operation; the
-            // connector independently checks whether the quote actually contains the drop.
-            observation.IsCommerceCheckoutMutation = true;
+            // A checkout request contains no reliable SKU. With no active drop it stays an
+            // ordinary Commerce request. With an active drop, the connector independently
+            // verifies whether the quote contains that drop before accepting the assertion.
+            var activeDrop = catalog.GetActiveDrop();
+            observation.IsCommerceCheckoutMutation = activeDrop is not null;
+            observation.ProtectedDropId = activeDrop?.DropId;
             return;
         }
 
-        if (route is not (TrafficRoute.GraphQlCartAdd or TrafficRoute.CommerceRestCart))
+        if (route is not (TrafficRoute.GraphQlCartAdd or TrafficRoute.CommerceRestCart or TrafficRoute.StorefrontCartAdd))
         {
             return;
         }
@@ -147,9 +170,19 @@ public sealed class TrafficMetricsMiddleware(RequestDelegate next)
         var requestedSkus = route == TrafficRoute.GraphQlCartAdd
             ? GraphQlCartMutationInspector.Inspect(observation.BufferedBody).RequestedSkus
             : CommerceRestCartMutationInspector.Inspect(observation.BufferedBody).RequestedSkus;
-        var isProtected = requestedSkus.Any(sku =>
-            options.ProtectedProducts.Contains(sku, StringComparer.OrdinalIgnoreCase) &&
-            string.Equals(sku, options.Admission.ProtectedProduct, StringComparison.OrdinalIgnoreCase));
+        var productId = route == TrafficRoute.StorefrontCartAdd
+            ? StorefrontCartMutationInspector.InspectProductId(observation.BufferedBody)
+            : null;
+        var protectedProduct = requestedSkus
+            .Select(sku => catalog.TryResolveSku(sku, out var found) ? found : null)
+            .FirstOrDefault(found => found is not null);
+        if (protectedProduct is null && productId is not null && catalog.TryResolveProductId(productId.Value, out var byId))
+        {
+            protectedProduct = byId;
+        }
+
+        var isProtected = protectedProduct is not null;
+        observation.ProtectedDropId = protectedProduct?.DropId;
         if (route == TrafficRoute.GraphQlCartAdd)
         {
             observation.IsProtectedGraphQlCartMutation = isProtected;
@@ -158,5 +191,14 @@ public sealed class TrafficMetricsMiddleware(RequestDelegate next)
         {
             observation.IsProtectedCommerceCartMutation = isProtected;
         }
+        else if (route == TrafficRoute.StorefrontCartAdd)
+        {
+            observation.IsProtectedCommerceCartMutation = isProtected;
+        }
     }
+
+    private static bool IsProtectedStockRequest(HttpRequest request, IProtectedDropCatalog catalog) =>
+        TrafficRouteClassifier.Classify(request) == TrafficRoute.Stock &&
+        TrafficRouteClassifier.GetProductId(request) is { } productId &&
+        catalog.TryResolveSku(productId, out _);
 }

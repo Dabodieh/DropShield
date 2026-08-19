@@ -114,11 +114,11 @@ public sealed class DropShieldOptionsValidationTests
     }
 
     [Fact]
-    public void Admission_RequiresConfiguredProtectedProduct()
+    public void Admission_RequiresConfiguredDemoStoreDropId()
     {
         var options = ValidOptions();
         options.Admission.Enabled = true;
-        options.Admission.ProtectedProduct = "not-protected";
+        options.Admission.DropId = "not-protected";
 
         var result = new DropShieldOptionsValidator(new TestHostEnvironment("Testing"))
             .Validate(null, options);
@@ -126,7 +126,7 @@ public sealed class DropShieldOptionsValidationTests
         Assert.True(result.Failed);
         Assert.Contains(
             result.Failures,
-            failure => failure.Contains("Admission:ProtectedProduct", StringComparison.Ordinal));
+            failure => failure.Contains("Admission:DropId", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -381,7 +381,7 @@ public sealed class DropShieldOptionsValidationTests
         Admission = new AdmissionOptions
         {
             Enabled = false,
-            ProtectedProduct = "pokemon-etb",
+            DropId = "pokemon-etb",
             MaximumActiveSessions = 200,
             AdmissionBatchSize = 20,
             MaximumWaitingSessions = 2_000,

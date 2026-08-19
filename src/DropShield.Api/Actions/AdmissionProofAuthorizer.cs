@@ -1,5 +1,6 @@
 using DropShield.Api.Admission;
 using DropShield.Api.Options;
+using DropShield.Api.Catalog;
 using DropShield.Api.State;
 using DropShield.Api.Traffic;
 using Microsoft.Extensions.Options;
@@ -19,6 +20,7 @@ public sealed class AdmissionProofAuthorizer(
     IAdmissionTokenService admissionTokenService,
     AdmissionEvaluator admissionEvaluator,
     IOptions<DropShieldOptions> options,
+    IProtectedDropCatalog catalog,
     TrafficMetrics metrics)
 {
     private readonly DropShieldOptions _options = options.Value;
@@ -35,9 +37,16 @@ public sealed class AdmissionProofAuthorizer(
             return AdmissionProofAuthorizationResult.Required;
         }
 
+        var dropId = context.Features.Get<TrafficRequestObservation>()?.ProtectedDropId ??
+                     catalog.GetActiveDrop()?.DropId;
+        if (string.IsNullOrEmpty(dropId) || !catalog.Status.IsUsable)
+        {
+            return AdmissionProofAuthorizationResult.Required;
+        }
+
         var validation = admissionTokenService.Validate(
             token,
-            _options.Admission.ProtectedProduct,
+            dropId,
             sessionId);
         metrics.RecordAdmissionTokenValidation(validation);
         if (!validation.IsValid)
@@ -48,7 +57,7 @@ public sealed class AdmissionProofAuthorizer(
         AdmissionDecision decision;
         try
         {
-            decision = await admissionEvaluator.EvaluateAsync(sessionId, cancellationToken);
+            decision = await admissionEvaluator.EvaluateAsync(dropId, sessionId, cancellationToken);
         }
         catch (DistributedTrafficStateUnavailableException)
         {

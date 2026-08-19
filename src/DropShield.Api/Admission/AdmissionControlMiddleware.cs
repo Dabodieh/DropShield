@@ -1,4 +1,5 @@
 using DropShield.Api.Models;
+using DropShield.Api.Catalog;
 using DropShield.Api.Options;
 using DropShield.Api.State;
 using DropShield.Api.Traffic;
@@ -15,10 +16,11 @@ public sealed class AdmissionControlMiddleware(RequestDelegate next)
         IAdmissionTokenService tokenService,
         AdmissionTokenCookieManager tokenCookies,
         TrafficMetrics metrics,
+        IProtectedDropCatalog catalog,
         IOptions<DropShieldOptions> options,
         ILogger<AdmissionControlMiddleware> logger)
     {
-        if (!AdmissionPolicy.AppliesTo(context.Request, options.Value))
+        if (!AdmissionPolicy.AppliesTo(context.Request, options.Value, catalog))
         {
             await next(context);
             return;
@@ -28,7 +30,7 @@ public sealed class AdmissionControlMiddleware(RequestDelegate next)
         var sessionId = sessionProvider.GetOrCreate(context);
         try
         {
-            decision = await evaluator.EvaluateAsync(sessionId, context.RequestAborted);
+            decision = await evaluator.EvaluateAsync(catalog.GetActiveDrop()!.DropId, sessionId, context.RequestAborted);
         }
         catch (DistributedTrafficStateUnavailableException exception)
         {
@@ -53,7 +55,7 @@ public sealed class AdmissionControlMiddleware(RequestDelegate next)
                     !context.Items.ContainsKey(AdmissionTokenMiddleware.ValidatedTokenItemKey))
                 {
                     var token = tokenService.Issue(
-                        options.Value.Admission.ProtectedProduct,
+                        catalog.GetActiveDrop()!.DropId,
                         sessionId);
                     tokenCookies.Issue(context, token);
                     metrics.RecordAdmissionTokenIssued();
@@ -62,7 +64,7 @@ public sealed class AdmissionControlMiddleware(RequestDelegate next)
                 await next(context);
                 return;
             case AdmissionStatus.Waiting:
-                await WriteWaitingAsync(context, options.Value.Admission, decision.RetryAfter);
+                await WriteWaitingAsync(context, catalog.GetActiveDrop()!.DropId, decision.RetryAfter);
                 return;
             case AdmissionStatus.Full:
                 logger.LogDebug("Bounded waiting room is full for configured protected drop");
@@ -80,7 +82,7 @@ public sealed class AdmissionControlMiddleware(RequestDelegate next)
 
     private static async Task WriteWaitingAsync(
         HttpContext context,
-        AdmissionOptions options,
+        string dropId,
         TimeSpan retryAfter)
     {
         var retryAfterSeconds = Math.Max(1, (int)Math.Ceiling(retryAfter.TotalSeconds));
@@ -90,7 +92,7 @@ public sealed class AdmissionControlMiddleware(RequestDelegate next)
         await context.Response.WriteAsJsonAsync(
             new WaitingRoomResponse(
                 "waiting",
-                options.ProtectedProduct,
+                dropId,
                 retryAfterSeconds),
             context.RequestAborted);
     }

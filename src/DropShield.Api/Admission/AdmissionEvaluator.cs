@@ -10,11 +10,12 @@ public sealed class AdmissionEvaluator(
     private readonly AdmissionOptions _options = options.Value.Admission;
 
     public ValueTask<AdmissionDecision> EvaluateAsync(
+        string dropId,
         string sessionId,
         CancellationToken cancellationToken) =>
         state.EvaluateAsync(
             new AdmissionRequest(
-                _options.ProtectedProduct,
+                dropId,
                 sessionId,
                 _options.MaximumActiveSessions,
                 _options.AdmissionBatchSize,

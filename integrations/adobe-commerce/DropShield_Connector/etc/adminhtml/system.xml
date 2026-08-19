@@ -11,14 +11,6 @@
                     <label>Enabled</label>
                     <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
                 </field>
-                <field id="drop_id" translate="label comment" type="text" sortOrder="15" showInDefault="1" showInWebsite="1" showInStore="1">
-                    <label>Protected Drop ID</label>
-                    <comment>Must match DropShield.Api's Admission:ProtectedProduct. This connector supports one active protected drop; every protected SKU below maps to it.</comment>
-                </field>
-                <field id="protected_skus" translate="label comment" type="textarea" sortOrder="20" showInDefault="1" showInWebsite="1" showInStore="1">
-                    <label>Protected SKUs</label>
-                    <comment>Comma-separated list of SKUs that map to the Protected Drop ID above and require a valid DropShield origin assertion. Ordinary SKUs are unaffected.</comment>
-                </field>
             </group>
             <group id="origin_assertion" translate="label" type="text" sortOrder="20" showInDefault="1" showInWebsite="1" showInStore="1">
                 <label>Origin Assertion</label>

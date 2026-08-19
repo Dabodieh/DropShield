@@ -1,4 +1,5 @@
 using DropShield.Api.Models;
+using DropShield.Api.Catalog;
 using DropShield.Api.Options;
 using DropShield.Api.Traffic;
 using Microsoft.Extensions.Options;
@@ -15,11 +16,12 @@ public sealed class AdmissionTokenMiddleware(RequestDelegate next)
         IAdmissionTokenService tokenService,
         AdmissionTokenCookieManager cookies,
         TrafficMetrics metrics,
+        IProtectedDropCatalog catalog,
         IOptions<DropShieldOptions> options,
         ILogger<AdmissionTokenMiddleware> logger)
     {
         var configuredOptions = options.Value;
-        if (!AdmissionPolicy.AppliesTo(context.Request, configuredOptions) ||
+        if (!AdmissionPolicy.AppliesTo(context.Request, configuredOptions, catalog) ||
             !configuredOptions.AdmissionTokens.Enabled)
         {
             await next(context);
@@ -37,7 +39,7 @@ public sealed class AdmissionTokenMiddleware(RequestDelegate next)
 
         var validation = tokenService.Validate(
             token,
-            configuredOptions.Admission.ProtectedProduct,
+            catalog.GetActiveDrop()!.DropId,
             sessionId);
         metrics.RecordAdmissionTokenValidation(validation);
         if (validation.IsValid)

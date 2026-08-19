@@ -21,8 +21,7 @@ public static class ActionProofPolicy
         }
 
         if (request.Path.Equals("/api/cart", StringComparison.OrdinalIgnoreCase) ||
-            request.Path.Equals("/api/checkout", StringComparison.OrdinalIgnoreCase) ||
-            request.Path.Equals("/checkout/cart/add", StringComparison.OrdinalIgnoreCase))
+            request.Path.Equals("/api/checkout", StringComparison.OrdinalIgnoreCase))
         {
             return true;
         }

@@ -10,4 +10,8 @@
     <PackageReference Include="StackExchange.Redis" Version="3.1.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="DropShield.Tests" />
+  </ItemGroup>
+
 </Project>

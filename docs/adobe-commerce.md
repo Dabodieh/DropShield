@@ -149,22 +149,33 @@ bypass `CartManagementInterface::placeOrder` entirely, and any custom checkout e
 places orders through a different, non-standard path. Treat any such flow as unprotected until
 verified.
 
-### Protected SKU configuration
+### Protected drop configuration
 
-This connector supports exactly one active protected drop, matching DropShield.Api's
-single-value `Admission:ProtectedProduct`. `Stores > Configuration > DropShield Connector >
-General > Protected Drop ID` configures that drop identifier, and `Protected SKUs`
-(comma-separated) configures every SKU that maps to it — multiple SKUs can share the one drop,
-but the connector does not sign or validate assertions for more than one drop at a time.
-`pokemon-etb` is sample data for the PoC only. `ProtectedDropResolver` is the single place both
-decisions are made (which SKUs are protected, and what drop ID they map to); ordinary SKUs are
-never routed through DropShield semantics.
+The connector supports multiple saved drop definitions and exactly one enabled protected drop at
+a time. Operators use **Marketing > Protected Drops** to select existing catalogue products;
+the connector persists only drop metadata and product entity-ID assignments. It does not copy
+catalogue data. See [Protected drops](protected-drops.md).
 
-A protected SKU whose configured Drop ID does not match DropShield.Api's
-`Admission:ProtectedProduct` will fail closed: DropShield never signs an assertion for a drop
-it isn't configured to protect, so every mutation for a misconfigured SKU is permanently
-rejected. This is a configuration error, not a security gap — check both sides agree on the
-same drop identifier before relying on multi-SKU protection.
+The connector exposes its active mapping through authenticated `GET
+/V1/dropshield/protection-manifest`, protected by the dedicated
+`DropShield_Connector::protection_manifest` Web API ACL. DropShield.Api reads that manifest into
+an in-process cache. A mismatch between the active connector drop and a gateway assertion fails
+closed because the assertion drop claim is still verified locally by the connector.
+
+The manifest response is a Magento webapi Data object, not a hand-serialized array; its field
+names on the wire are Magento's standard REST snake_case (`version`, `generated_at`,
+`active_drop`, and within it `id`/`products`/`product_id`/`sku`), confirmed against a real Mage-OS
+REST response — not the `camelCase` shape a naive reading of the field names might suggest.
+`AdobeCommerceProtectedDropCatalog.Parse` on the DropShield.Api side reads this exact shape, and
+also treats a missing `active_drop` key (which is how Magento's webapi serializer represents a
+null value — it omits the key rather than emitting `"active_drop":null`) the same as an explicit
+null: no active drop, not a parse failure.
+
+Admin protected-drop management (grid, create/edit, product search by SKU and name, product
+selection persistence, duplicate-assignment prevention, the one-active-drop invariant including a
+concurrent-enable race, ACL-restricted-role denial, remove/re-add/disable lifecycle with no
+DropShield.Api restart, and FK cascade delete when a Magento product is deleted while assigned) is
+RUNTIME VERIFIED over real HTTP against Mage-OS 3.0.0. See [Protected drops](protected-drops.md).
 
 ### Cart and checkout enforcement
 

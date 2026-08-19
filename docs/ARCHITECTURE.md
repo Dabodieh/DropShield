@@ -100,7 +100,8 @@ edge. Cloudflare and Akamai adapters are not implemented.
 
 ### Adobe Commerce integration
 
-The application domain provides ecommerce-aware controls: protected SKU/drop configuration,
+The application domain provides ecommerce-aware controls: Commerce-managed protected-drop
+selection and authenticated manifest synchronisation,
 purchase and cart policy, inventory reservation policy, checkout admission enforcement, and
 Commerce lifecycle integration. See [Adobe Commerce](adobe-commerce.md) for what's implemented
 today.

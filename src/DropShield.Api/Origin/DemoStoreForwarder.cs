@@ -4,6 +4,7 @@ using DropShield.Api.Actions;
 using DropShield.Api.Models;
 using DropShield.Api.Options;
 using DropShield.Api.Traffic;
+using DropShield.Api.Catalog;
 using Microsoft.Extensions.Options;
 
 namespace DropShield.Api.Origin;
@@ -11,6 +12,7 @@ namespace DropShield.Api.Origin;
 public sealed class DemoStoreForwarder(
     IDemoStoreClient client,
     IOriginAssertionService assertionService,
+    IProtectedDropCatalog catalog,
     IOptions<DropShieldOptions> options,
     TrafficMetrics metrics,
     ILogger<DemoStoreForwarder> logger)
@@ -41,9 +43,8 @@ public sealed class DemoStoreForwarder(
 
         var configured = options.Value;
         var protectedAction = observation?.ProtectedAction;
-        var isLegacyProtectedMutation = route is TrafficRoute.Cart or TrafficRoute.Checkout or TrafficRoute.StorefrontCartAdd ||
-                                        (route == TrafficRoute.GraphQlCartAdd &&
-                                         (observation?.IsProtectedGraphQlCartMutation ?? false));
+        var isLegacyProtectedMutation = configured.OriginMode == OriginMode.DemoStore &&
+                                        route is TrafficRoute.Cart or TrafficRoute.Checkout or TrafficRoute.StorefrontCartAdd;
         (string HeaderName, string Value)? assertionHeader = null;
         if (configured.OriginAssertions.Enabled &&
             (protectedAction is not null || isLegacyProtectedMutation))
@@ -175,7 +176,8 @@ public sealed class DemoStoreForwarder(
             ? CommerceRouteMatcher.GetAssertionRoute(context.Request)
             : TrafficRouteClassifier.GetRouteTemplate(route);
         return assertionService.Issue(
-            configured.Admission.ProtectedProduct,
+            observation?.ProtectedDropId ?? catalog.GetActiveDrop()?.DropId ??
+                throw new InvalidOperationException("No active protected drop is available."),
             action.ToString().ToLowerInvariant(),
             context.Request.Method,
             assertionRoute,

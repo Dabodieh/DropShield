@@ -71,6 +71,13 @@ Deeper documentation:
 - [Benchmarks](docs/benchmarks.md) — measured unprotected vs. protected throughput/latency.
 - [Roadmap](docs/ROADMAP.md).
 
+### Select products for Adobe Commerce protection
+
+Commerce operators do not edit SKU lists or DropShield configuration. In Adobe Commerce, open
+**Marketing > Protected Drops**, create/edit a drop, search the existing catalogue by SKU or name,
+select products, then enable the drop. DropShield.Api learns the selected products through an
+authenticated manifest refresh; see [Protected drops](docs/protected-drops.md).
+
 ## Projects
 
 - `src/DropShield.Api` — the protection gateway: explicit route forwarding, selectable

@@ -1,0 +1,23 @@
+<?php /** @var \DropShield\Connector\Block\Adminhtml\Drop\Edit $block */ $drop = $block->getDrop(); $assigned = $block->getAssignedProductIds(); ?>
+<form method="post" action="<?= $block->escapeUrl($block->getUrl('*/*/save')) ?>">
+    <input type="hidden" name="form_key" value="<?= $block->escapeHtmlAttr($block->getFormKeyValue()) ?>"/>
+    <?php if ($drop !== null): ?><input type="hidden" name="id" value="<?= (int) $drop->entityId ?>"/><?php endif; ?>
+    <fieldset class="admin__fieldset">
+        <legend class="admin__legend"><span><?= $block->escapeHtml(__('Protected Drop')) ?></span></legend>
+        <div class="admin__field"><label class="admin__field-label" for="name"><span><?= $block->escapeHtml(__('Name')) ?></span></label><div class="admin__field-control"><input class="admin__control-text required-entry" id="name" name="name" value="<?= $block->escapeHtmlAttr($drop?->name ?? '') ?>" required="required"/></div></div>
+        <div class="admin__field"><label class="admin__field-label" for="drop_identifier"><span><?= $block->escapeHtml(__('Drop ID')) ?></span></label><div class="admin__field-control"><input class="admin__control-text required-entry" id="drop_identifier" name="drop_identifier" value="<?= $block->escapeHtmlAttr($drop?->identifier ?? '') ?>" required="required" maxlength="64"/></div></div>
+        <div class="admin__field"><label class="admin__field-label" for="is_enabled"><span><?= $block->escapeHtml(__('Enabled')) ?></span></label><div class="admin__field-control"><input id="is_enabled" type="checkbox" name="is_enabled" value="1" <?= $drop?->enabled ? 'checked="checked"' : '' ?>/></div></div>
+    </fieldset>
+    <?php foreach ($assigned as $productId): ?><input type="hidden" name="product_ids[]" value="<?= (int) $productId ?>"/><?php endforeach; ?>
+    <fieldset class="admin__fieldset"><legend class="admin__legend"><span><?= $block->escapeHtml(__('Add Products')) ?></span></legend>
+        <p><?= $block->escapeHtml(__('Search the existing Commerce catalogue by SKU or product name and select products. Commerce remains the catalogue authority.')) ?></p>
+        <label for="product_query"><?= $block->escapeHtml(__('SKU or product name')) ?></label>
+        <input id="product_query" name="product_query" value="<?= $block->escapeHtmlAttr((string) $block->getRequest()->getParam('product_query')) ?>"/>
+        <button type="submit" class="action-secondary" formaction="<?= $block->escapeUrl($block->getUrl('*/*/edit', ['id' => $drop?->entityId])) ?>"><span><?= $block->escapeHtml(__('Search')) ?></span></button>
+        <table class="data-grid"><thead><tr><th><?= $block->escapeHtml(__('Add')) ?></th><th><?= $block->escapeHtml(__('Remove')) ?></th><th><?= $block->escapeHtml(__('SKU')) ?></th><th><?= $block->escapeHtml(__('Product')) ?></th></tr></thead><tbody>
+        <?php foreach ($block->getProductCollection() as $product): $selected = in_array((int) $product->getId(), $assigned, true); ?><tr><td><input type="checkbox" name="product_ids[]" value="<?= (int) $product->getId() ?>" <?= $selected ? 'checked="checked"' : '' ?>/></td><td><?= $selected ? '<input type="checkbox" name="remove_product_ids[]" value="' . (int) $product->getId() . '"/>' : '' ?></td><td><?= $block->escapeHtml($product->getSku()) ?></td><td><?= $block->escapeHtml($product->getName()) ?></td></tr><?php endforeach; ?>
+        </tbody></table>
+    </fieldset>
+    <button type="submit" class="action-primary"><span><?= $block->escapeHtml(__('Save')) ?></span></button>
+</form>
+<?php if ($drop !== null && !$drop->enabled): ?><form method="post" action="<?= $block->escapeUrl($block->getUrl('*/*/delete')) ?>"><input type="hidden" name="form_key" value="<?= $block->escapeHtmlAttr($block->getFormKeyValue()) ?>"/><input type="hidden" name="id" value="<?= (int) $drop->entityId ?>"/><button type="submit" class="action-delete"><span><?= $block->escapeHtml(__('Delete')) ?></span></button></form><?php endif; ?>

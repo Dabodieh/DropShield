@@ -60,6 +60,27 @@ public sealed class AdobeCommerceOptions
     // Bounded PoC limit for inspected/protected REST JSON, GraphQL JSON, and storefront form
     // requests. This is not presented as a universal Magento request-size limit.
     public int MaximumProtectedRequestBodyBytes { get; set; } = 262_144;
+
+    public ProtectionManifestOptions ProtectionManifest { get; set; } = new();
+}
+
+/// <summary>Settings for the authenticated, Commerce-owned protection manifest.</summary>
+public sealed class ProtectionManifestOptions
+{
+    public bool Enabled { get; set; } = true;
+
+    public string EndpointPath { get; set; } = "/rest/V1/dropshield/protection-manifest";
+
+    // Intentionally empty: supply through a secret or environment configuration only.
+    public string AccessToken { get; set; } = string.Empty;
+
+    public int RefreshIntervalSeconds { get; set; } = 30;
+
+    public int StaleAfterSeconds { get; set; } = 300;
+
+    public int MaximumResponseBytes { get; set; } = 262_144;
+
+    public int MaximumProducts { get; set; } = 10_000;
 }
 
 public sealed class SyntheticClientIdentityOptions
@@ -104,7 +125,11 @@ public sealed class AdmissionOptions
 {
     public bool Enabled { get; set; }
 
-    public string ProtectedProduct { get; set; } = "pokemon-etb";
+    /// <summary>
+    /// DemoStore's local synthetic drop identifier. In AdobeCommerce mode the active drop ID
+    /// comes exclusively from the authenticated protection manifest.
+    /// </summary>
+    public string DropId { get; set; } = "pokemon-etb";
 
     public int MaximumActiveSessions { get; set; } = 200;
 

@@ -37,7 +37,9 @@ In `OriginMode=AdobeCommerce`, the narrow profile additionally forwards only `PO
 not proxied.
 
 It is not a generic HTTP proxy. Catalogue browsing is forwarded without rate limiting. Stock,
-cart, and checkout policy applies only when `{productId}` is in `DropShield:ProtectedProducts`.
+cart, and checkout policy applies only when the authenticated Commerce protection-manifest cache
+resolves the SKU or product entity ID. `ProtectedProducts` remains DemoStore-only synthetic
+configuration; it is not authoritative in Adobe Commerce mode.
 `POST /graphql` is a shared endpoint: DropShield inspects its JSON envelope only to identify a
 protected `addSimpleProductsToCart`, `addVirtualProductsToCart`, or `addProductsToCart` mutation
 for the configured drop, while ordinary GraphQL traffic remains outside the protected mutation

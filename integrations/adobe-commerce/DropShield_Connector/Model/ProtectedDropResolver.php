@@ -13,7 +13,7 @@ namespace DropShield\Connector\Model;
  */
 class ProtectedDropResolver
 {
-    public function __construct(private readonly Config $config)
+    public function __construct(private readonly ProtectedDropRepository $repository)
     {
     }
 
@@ -23,13 +23,21 @@ class ProtectedDropResolver
             return false;
         }
 
-        foreach ($this->config->getProtectedSkus($storeId) as $protectedSku) {
-            if (strcasecmp($protectedSku, $sku) === 0) {
-                return true;
-            }
+        return $this->resolveForSku($sku, $storeId) !== null;
+    }
+
+    public function resolveForSku(string $sku, ?int $storeId = null): ?ProtectedDrop
+    {
+        if ($sku === '') {
+            return null;
         }
 
-        return false;
+        $drop = $this->repository->getActiveDrop();
+        if ($drop === null) {
+            return null;
+        }
+
+        return $this->repository->activeDropContainsSku($drop, $sku) ? $drop : null;
     }
 
     /**
@@ -37,9 +45,14 @@ class ProtectedDropResolver
      * active protected drop at a time (matching DropShield.Api's single-drop admission
      * model) rather than one drop per SKU.
      */
+    public function getActiveDrop(?int $storeId = null): ?ProtectedDrop
+    {
+        return $this->repository->getActiveDrop();
+    }
+
     public function getDropId(?int $storeId = null): string
     {
-        return $this->config->getDropId($storeId);
+        return $this->getActiveDrop($storeId)?->identifier ?? '';
     }
 
     /**

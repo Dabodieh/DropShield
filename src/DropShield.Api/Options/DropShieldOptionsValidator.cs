@@ -39,17 +39,21 @@ public sealed partial class DropShieldOptionsValidator(IHostEnvironment environm
             failures.Add("DropShield:OriginTimeoutSeconds must be greater than zero.");
         }
 
-        if (options.ProtectedProducts.Count == 0 ||
-            options.ProtectedProducts.Any(string.IsNullOrWhiteSpace))
+        if (options.OriginMode == OriginMode.DemoStore &&
+            (options.ProtectedProducts.Count == 0 ||
+             options.ProtectedProducts.Any(string.IsNullOrWhiteSpace)))
         {
             failures.Add("DropShield:ProtectedProducts must contain at least one non-empty product ID.");
         }
 
-        if (options.ProtectedProducts.Distinct(StringComparer.OrdinalIgnoreCase).Count() !=
+        if (options.OriginMode == OriginMode.DemoStore &&
+            options.ProtectedProducts.Distinct(StringComparer.OrdinalIgnoreCase).Count() !=
             options.ProtectedProducts.Count)
         {
             failures.Add("DropShield:ProtectedProducts must not contain duplicate product IDs.");
         }
+
+        ValidateProtectionManifest(options, failures);
 
         ValidateClientPolicy("Stock", options.Policies.Stock, failures);
         ValidateClientPolicy("Cart", options.Policies.Cart, failures);
@@ -116,13 +120,14 @@ public sealed partial class DropShieldOptionsValidator(IHostEnvironment environm
             return;
         }
 
-        if (!AdmissionProductPattern().IsMatch(admission.ProtectedProduct) ||
+        if (options.OriginMode == OriginMode.DemoStore &&
+            (!AdmissionProductPattern().IsMatch(admission.DropId) ||
             !options.ProtectedProducts.Contains(
-                admission.ProtectedProduct,
-                StringComparer.OrdinalIgnoreCase))
+                admission.DropId,
+                StringComparer.OrdinalIgnoreCase)))
         {
             failures.Add(
-                "DropShield:Admission:ProtectedProduct must be a bounded configured protected product ID.");
+                "DropShield:Admission:DropId must be a bounded configured DemoStore protected product ID.");
         }
 
         if (admission.MaximumActiveSessions is < 1 or > 100_000)
@@ -157,6 +162,43 @@ public sealed partial class DropShieldOptionsValidator(IHostEnvironment environm
         {
             failures.Add(
                 "DropShield admission session and waiting TTLs must not be shorter than the retry interval.");
+        }
+    }
+
+    private static void ValidateProtectionManifest(
+        DropShieldOptions options,
+        ICollection<string> failures)
+    {
+        if (options.OriginMode != OriginMode.AdobeCommerce)
+        {
+            return;
+        }
+
+        var manifest = options.AdobeCommerce.ProtectionManifest;
+        if (!manifest.Enabled)
+        {
+            failures.Add("DropShield:AdobeCommerce:ProtectionManifest:Enabled is required in AdobeCommerce mode.");
+        }
+
+        if (!manifest.EndpointPath.StartsWith("/", StringComparison.Ordinal) ||
+            manifest.EndpointPath.StartsWith("//", StringComparison.Ordinal) ||
+            manifest.EndpointPath.Contains("?", StringComparison.Ordinal) || manifest.EndpointPath.Length > 512)
+        {
+            failures.Add("DropShield:AdobeCommerce:ProtectionManifest:EndpointPath must be a bounded rooted path without a query.");
+        }
+
+        if (string.IsNullOrWhiteSpace(manifest.AccessToken))
+        {
+            failures.Add("DropShield:AdobeCommerce:ProtectionManifest:AccessToken is required in AdobeCommerce mode.");
+        }
+
+        if (manifest.RefreshIntervalSeconds is < 5 or > 3_600 ||
+            manifest.StaleAfterSeconds < manifest.RefreshIntervalSeconds ||
+            manifest.StaleAfterSeconds > 86_400 ||
+            manifest.MaximumResponseBytes is < 1_024 or > 1_048_576 ||
+            manifest.MaximumProducts is < 1 or > 10_000)
+        {
+            failures.Add("DropShield protection manifest settings are outside supported bounds.");
         }
     }
 

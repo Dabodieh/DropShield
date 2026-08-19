@@ -1,7 +1,8 @@
 # Fastly reference integration
 
-This is a reference Fastly integration for Adobe Commerce deployments. It is not evidence that
-Hamleys currently uses Fastly. Adobe documents Fastly as the standard, required edge for Adobe
+This is a reference Fastly integration for Adobe Commerce deployments. Fastly is part of
+Adobe Commerce's documented cloud architecture; Hamleys' current edge provider has not been
+independently confirmed. Adobe documents Fastly as the standard, required edge for Adobe
 Commerce on Cloud Infrastructure staging and production — see
 [ADR-001](../../docs/adr/ADR-001-edge-provider-neutral.md) and
 [Hamleys platform research](../../docs/hamleys-platform-research.md) for what is and is not

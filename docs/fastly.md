@@ -127,7 +127,7 @@ project already runs under everywhere else — DropShield.Api's own rate limitin
 other controls still apply; only the edge-specific coarse flood protection is skipped.
 
 **Client bypasses both Fastly and DropShield.Api, reaching Adobe Commerce directly.** This is
-unchanged by Phase 12: the Adobe Commerce connector's Origin Assertion validation
+unaffected by the Fastly integration: the Adobe Commerce connector's Origin Assertion validation
 (`OriginAssertionGuard`, see [docs/adobe-commerce.md](adobe-commerce.md)) already rejects a
 protected mutation with no valid assertion, regardless of whether Fastly or DropShield.Api were
 involved. This reference VCL does not provide network-level origin isolation by itself — a real
@@ -141,8 +141,8 @@ This integration does not change how DropShield.Api derives client identity
 read `X-Forwarded-For` or any Fastly-supplied client-IP header today). A production deployment
 that puts Fastly in front of DropShield.Api will see Fastly's own connection IP as the remote
 address unless DropShield.Api is updated to trust Fastly's documented client-IP header
-(`Fastly-Client-IP`) from a verified Fastly connection — that is future work, not part of this
-phase, and is called out here rather than silently left inconsistent.
+(`Fastly-Client-IP`) from a verified Fastly connection — that is future work, called out here
+rather than silently left inconsistent.
 
 ## Internal diagnostics
 
@@ -182,9 +182,9 @@ routing/pass decision is made before Adobe's default caching and ACL logic would
 apply, without overwriting it. See `integrations/fastly/README.md` for the full snippet-by-
 snippet ordering table.
 
-No Magento work changed for Phase 12. REST cart/checkout protection, GraphQL cart/checkout
-protection, and cross-language Origin Assertion validation were already established by the
-Adobe Commerce connector and are unaffected here.
+This integration does not modify the Adobe Commerce connector. REST cart/checkout protection,
+GraphQL cart/checkout protection, and cross-language Origin Assertion validation are established
+by the connector itself and are unaffected here — see [docs/adobe-commerce.md](adobe-commerce.md).
 
 ## Limitations
 

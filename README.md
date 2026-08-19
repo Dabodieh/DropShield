@@ -24,8 +24,11 @@ replayed, and a synthetic scarce-stock ledger reserves and commits inventory ato
 Behavioural scoring adds a short-lived, explainable risk signal that can temporarily restrict
 high-risk sessions. The Adobe Commerce connector is a companion Magento 2 module that verifies
 a signed origin assertion before allowing cart/checkout writes through, so Commerce can't be
-reached by skipping DropShield. An internal, bounded, aggregate-only metrics snapshot supports
-local development.
+reached by skipping DropShield; REST and GraphQL cart/checkout protection have been exercised
+against a real Mage-OS 3.0.0 runtime (see [Adobe Commerce](docs/adobe-commerce.md) for exact
+coverage). A Fastly reference adapter shows how an edge provider can sit in front of DropShield
+without becoming part of its core policy engine (see [Fastly](docs/fastly.md)). An internal,
+bounded, aggregate-only metrics snapshot supports local development.
 
 None of this is presented as production-ready. It is a working demonstration of the protection
 model, backed by measured local benchmarks — see [benchmarks](docs/benchmarks.md).
@@ -166,3 +169,7 @@ docker build -f src/DropShield.DemoStore/Dockerfile -t dropshield-demo-store .
 ```
 
 Each container listens on port `8080`.
+
+## License
+
+[MIT](LICENSE).

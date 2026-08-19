@@ -257,6 +257,12 @@ suite: 23/23 passing (17 from the original validation pass, plus 6 new: 4 for th
 plugins, 2 for the extended route contract), run against the real Magento-provided PHPUnit and
 autoloader inside the test instance above.
 
+The connector's PHPUnit suite is not run in this repository's CI: it depends on Magento's own
+autoloader and test bootstrap, which only exist inside an installed Magento/Mage-OS instance.
+Reproducing that in CI would mean installing a full Magento stack on every run, which is outside
+what this project's CI aims to do. The suite has been run against a real instance as described
+above; running it again requires the same local Mage-OS setup.
+
 ## Limitations
 
 - Storefront cart-add's full HTTP round-trip (including a valid-assertion success case through

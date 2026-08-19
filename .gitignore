@@ -32,3 +32,14 @@ Thumbs.db
 # Local scratch output
 /tmp/
 
+# PHP / Composer (Adobe Commerce connector development)
+/vendor/
+composer.lock
+.phpunit.result.cache
+
+# Magento local runtime state (not part of the connector source)
+generated/
+var/
+pub/static/
+pub/media/
+

@@ -62,9 +62,13 @@ public sealed class AdmissionTokenTests
             .Issue("pokemon-etb", session);
         var parts = token.Split('.');
         var index = modifiedPart == "payload" ? 1 : 2;
-        parts[index] = ReplaceLastCharacter(parts[index]);
+        var mutatedPart = MutateFirstByte(parts[index]);
+        Assert.NotEqual(parts[index], mutatedPart);
+        parts[index] = mutatedPart;
+        var tampered = string.Join('.', parts);
+        Assert.NotEqual(token, tampered);
 
-        var response = await SendStockAsync(client, "client-c", session, string.Join('.', parts));
+        var response = await SendStockAsync(client, "client-c", session, tampered);
         var body = await response.Content.ReadFromJsonAsync<GatewayErrorResponse>();
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
@@ -242,6 +246,36 @@ public sealed class AdmissionTokenTests
         return header?.Split(';', 2)[0].Split('=', 2)[1];
     }
 
-    private static string ReplaceLastCharacter(string value) =>
-        value[..^1] + (value[^1] == 'A' ? 'B' : 'A');
+    /// <summary>
+    /// Flips the first decoded byte of a Base64Url segment with XOR 0xFF, guaranteeing a
+    /// genuinely different byte sequence. A fixed-target-character substitution (e.g. always
+    /// replacing the last character with 'A' or 'B') can occasionally decode to the same
+    /// underlying bytes as the original due to Base64 padding-bit slack in the final character,
+    /// producing a token that is not actually mutated and an intermittently-passing test. XOR
+    /// 0xFF on a full byte has no such collision — the same pattern used by
+    /// <see cref="OriginAssertionTests"/>'s equivalent signature-mutation test.
+    /// </summary>
+    private static string MutateFirstByte(string value)
+    {
+        var bytes = Base64UrlDecode(value);
+        bytes[0] ^= 0xFF;
+        return Base64UrlEncode(bytes);
+    }
+
+    private static byte[] Base64UrlDecode(string value)
+    {
+        var base64 = value.Replace('-', '+').Replace('_', '/');
+        base64 = (base64.Length % 4) switch
+        {
+            2 => base64 + "==",
+            3 => base64 + "=",
+            _ => base64,
+        };
+        return Convert.FromBase64String(base64);
+    }
+
+    private static string Base64UrlEncode(byte[] value) => Convert.ToBase64String(value)
+        .TrimEnd('=')
+        .Replace('+', '-')
+        .Replace('/', '_');
 }

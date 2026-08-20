@@ -17,11 +17,8 @@ public sealed class TrafficMetricsMiddleware(RequestDelegate next)
         IOptions<DropShieldOptions> options,
         ILogger<TrafficMetricsMiddleware> logger)
     {
-        // Strip any client-supplied Origin Assertion header before anything downstream (route
-        // classification, action-proof handling, forwarding) can see it. This is the first
-        // middleware in the pipeline that touches the request, so no earlier stage ever reads a
-        // shopper-controlled value under this header name; only DemoStoreForwarder/
-        // DemoStoreClient add a real assertion later, after every upstream control has passed.
+        // First middleware in the pipeline: strips any client-supplied assertion before anything
+        // downstream can see it. A real assertion is only added later, by DemoStoreForwarder.
         context.Request.Headers.Remove(options.Value.OriginAssertions.HeaderName);
 
         var route = TrafficRouteClassifier.Classify(context.Request);

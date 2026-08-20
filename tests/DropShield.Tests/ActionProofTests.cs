@@ -114,7 +114,7 @@ public sealed class ActionProofTests
         using var client = CreateClient(factory);
         var admissionToken = await GetAdmissionTokenAsync(client, "admitted", Session);
         var actionProof = await GetActionProofAsync(client, "proof", Session, admissionToken, "cart");
-        var modified = actionProof[..^1] + (actionProof[^1] == 'A' ? 'B' : 'A');
+        var modified = MutateSignature(actionProof);
 
         var invalid = await SendMutationAsync(client, "invalid", Session, admissionToken, modified, "/api/cart");
         clock.Advance(TimeSpan.FromSeconds(31));
@@ -320,6 +320,33 @@ public sealed class ActionProofTests
             .SingleOrDefault(value => value.StartsWith($"{name}=", StringComparison.Ordinal));
         return header?.Split(';', 2)[0].Split('=', 2)[1];
     }
+
+    /// <summary>XORs the signature's first byte with 0xFF, guaranteeing a real mutation.</summary>
+    private static string MutateSignature(string token)
+    {
+        var parts = token.Split('.');
+        var signatureBytes = Base64UrlDecode(parts[2]);
+        signatureBytes[0] ^= 0xFF;
+        parts[2] = Base64UrlEncode(signatureBytes);
+        return string.Join('.', parts);
+    }
+
+    private static byte[] Base64UrlDecode(string value)
+    {
+        var base64 = value.Replace('-', '+').Replace('_', '/');
+        base64 = (base64.Length % 4) switch
+        {
+            2 => base64 + "==",
+            3 => base64 + "=",
+            _ => base64,
+        };
+        return Convert.FromBase64String(base64);
+    }
+
+    private static string Base64UrlEncode(byte[] value) => Convert.ToBase64String(value)
+        .TrimEnd('=')
+        .Replace('+', '-')
+        .Replace('/', '_');
 
     private sealed class UnavailableReplayState : IReplayState
     {

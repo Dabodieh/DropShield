@@ -100,11 +100,8 @@ var configuredOptions = app.Services
     .GetRequiredService<IOptions<DropShieldOptions>>()
     .Value;
 
-// No UseHttpsRedirection()/UseHsts() here: this PoC assumes TLS termination happens at a
-// fronting edge/reverse proxy (see docs/fastly.md), with DropShield.Api itself reached only over
-// loopback/internal network — consistent with OriginBaseUrl and Redis both being validated to
-// loopback-only. A production deployment terminating TLS directly on this process would need to
-// add those explicitly; that is deployment-model work, not something this component does itself.
+// No UseHttpsRedirection()/UseHsts(): TLS termination is assumed to happen at a fronting edge
+// (see docs/fastly.md), consistent with OriginBaseUrl/Redis being loopback-only.
 app.UseRouting();
 app.UseMiddleware<EdgeTrustMiddleware>();
 app.UseMiddleware<TrafficMetricsMiddleware>();

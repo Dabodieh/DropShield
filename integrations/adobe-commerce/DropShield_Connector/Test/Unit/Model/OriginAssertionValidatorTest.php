@@ -44,7 +44,11 @@ final class OriginAssertionValidatorTest extends TestCase
     public function testInvalidSignatureFails(): void
     {
         $validator = $this->createValidator();
-        $tampered = substr(self::ASSERTION, 0, -1) . (str_ends_with(self::ASSERTION, 'A') ? 'B' : 'A');
+        $parts = explode('.', self::ASSERTION);
+        $signatureBytes = self::base64UrlDecode($parts[2]);
+        $signatureBytes[0] = chr(ord($signatureBytes[0]) ^ 0xFF);
+        $parts[2] = self::base64UrlEncode($signatureBytes);
+        $tampered = implode('.', $parts);
 
         $result = $validator->validate(
             $tampered,
@@ -175,5 +179,21 @@ final class OriginAssertionValidatorTest extends TestCase
         self::assertIsString($keyMaterial);
 
         return new OriginAssertionValidator(self::KEY_ID, $keyMaterial, 5);
+    }
+
+    private static function base64UrlDecode(string $value): string
+    {
+        $base64 = strtr($value, '-_', '+/');
+        $padding = strlen($base64) % 4;
+        if ($padding > 0) {
+            $base64 .= str_repeat('=', 4 - $padding);
+        }
+
+        return base64_decode($base64, true);
+    }
+
+    private static function base64UrlEncode(string $value): string
+    {
+        return rtrim(strtr(base64_encode($value), '+/', '-_'), '=');
     }
 }

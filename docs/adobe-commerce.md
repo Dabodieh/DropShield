@@ -270,10 +270,11 @@ cross-language contract test.
   a focused virtual-product Mage-OS HTTP round-trip has not yet been observed.
 - Composer constraints (`magento/framework ^103.0`, `magento/module-quote ^101.0`,
   `magento/module-checkout ^100.4`) target currently supported Magento 2 / Adobe Commerce
-  component versions; the runtime test above needed `--ignore-platform-req=php` because Mage-OS
-  3.0.0 itself requires PHP 8.3-8.5 while this connector's `composer.json` declares `~8.1.0
-  ||~8.2.0||~8.3.0` — the two ranges only overlap at 8.3. No incompatibility with PHP 8.4/8.5 was
-  found in practice; the declared constraint is narrower than necessary and worth widening in a
-  separate change.
+  component versions. The runtime test above needed `--ignore-platform-req=php` at the time
+  because this connector's `composer.json` then declared `~8.1.0||~8.2.0||~8.3.0`, which only
+  overlapped Mage-OS 3.0.0's own `8.3-8.5` requirement at 8.3 — no incompatibility with PHP
+  8.4/8.5 was found in practice, so the constraint has since been widened to
+  `~8.2.0||~8.3.0||~8.4.0||~8.5.0` (dropping the EOL 8.1 floor and matching Mage-OS 3.0.0's
+  actual supported range) and no longer needs the platform-requirement override.
 - Webhooks and App Builder are not used; documented only as possible future options for
   Commerce lifecycle events, not a current dependency.
